@@ -1,5 +1,6 @@
 # Nombre de proyecto 
 Q-LESS
+
 # Idea de proyecto Q-LESS
 Una pagina web de utiles escolares e insumos para los aprendices e instructores del CBA 
 para el optimo desarrollo de sus actvidades academicas.
@@ -21,12 +22,12 @@ para el optimo desarrollo de sus actvidades academicas.
 
 ## Instrucciones para empezar
 1. **Clonar el repositorio:** `git clone [https://github.com/AnderFelipeOrtiz2004/Q-Lees]`
-2. **Configurar Backend:**
-1. **Tener Git instalado en tu computadora.
+2. **Configurar Backend**
+1. **Tener Git instalado en tu computadora.**
 2. **Clonar el repositorio:** `git clone [https://github.com/AnderFelipeOrtiz2004/Q-Lees]`
-3. **Copiar la URL: `En GitHub, ve a la página principal del repositorio y haz clic en el botón verde "Code". Copia la dirección HTTPS o SSH`
-4. **Abrir la Terminal: `Abre Git Bash, Terminal o CMD y usa cd para ir a la carpeta donde quieras guardar el proyecto.`
-5. **Ejecutar el comando: `Escribe git clone seguido de la URL copiada y presiona Enter Ejemplo: git clone https://github.com`
+3. **Copiar la URL:** `En GitHub, ve a la página principal del repositorio y haz clic en el botón verde "Code". Copia la dirección HTTPS o SSH`
+4. **Abrir la Terminal:** `Abre Git Bash, Terminal o CMD y usa cd para ir a la carpeta donde quieras guardar el proyecto.`
+5. **Ejecutar el comando:** `Escribe git clone seguido de la URL copiada y presiona Enter Ejemplo: git clone https://github.com`
 
 ## Ejecución local
  **Configurar Backend:**
@@ -59,19 +60,22 @@ para el optimo desarrollo de sus actvidades academicas.
 - <img width="1600" height="837" alt="image" src="https://github.com/user-attachments/assets/1bde69d2-23a0-49ea-8057-c4420aeef5f3" />
 
 # Proyecto Full Stack
-
-**Este proyecto consta de un Frontend en Angular y un Backend en Node.js.
+- Este proyecto consta de un Frontend en Angular y un Backend en Node.js.
 
 - Canales de Pago 
 - Atención Personalizada
 - Suministros Esenciales
 
 # Tecnologias utilizadas
-
--Lenguajes, frameworks o librerías.
 - Frontend: `Angular`
 - Backend: `Node.js`
 - Base de datos: `Mysql`
 - SCSS
+- PHP
+- Blade
+- TypeScript
+- HTML
+- JavaScript
+
 
 
