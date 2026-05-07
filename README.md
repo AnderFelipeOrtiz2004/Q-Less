@@ -6,21 +6,21 @@ para el optimo desarrollo de sus actvidades academicas.
 
 # Integrantes
 - Anderson Felipe Ortiz Garcia
-- Daniel ANdres Cubides Garcia
 - Cristian Dario Rojas Ubalteros
+- Daniel ANdres Cubides Garcia
 
 # Prerrequisitos
 - Tener instalado [Node.js](https://nodejs.org/)
 - Tener instalado el Angular CLI: `npm install -g @angular/cli`
-- 
+
   
 # Dependencias 
 - Node.js
 - Angular CLI
-Este repositorio contiene el Frontend (Angular) y el Backend (Node.js).
+- Este repositorio contiene el Frontend (Angular) y el Backend (Node.js).
 
 ## Instrucciones para empezar
-1. **Clonar el repositorio:** `git clone [https://github.com/rc-cristian/Q-LESS]`
+1. **Clonar el repositorio:** `git clone [https://github.com/AnderFelipeOrtiz2004/Q-Lees]`
 2. **Configurar Backend:**
 1. **Tener Git instalado en tu computadora.
 2. **Clonar el repositorio:** `git clone [https://github.com/AnderFelipeOrtiz2004/Q-Lees]`
@@ -29,7 +29,7 @@ Este repositorio contiene el Frontend (Angular) y el Backend (Node.js).
 5. **Ejecutar el comando: `Escribe git clone seguido de la URL copiada y presiona Enter Ejemplo: git clone https://github.com`
 
 ## Ejecución local
-6. **Configurar Backend:**
+ **Configurar Backend:**
    - `cd backend`
    - `npm install`
    - `npm run dev`
@@ -58,19 +58,20 @@ Este repositorio contiene el Frontend (Angular) y el Backend (Node.js).
 - <img width="1600" height="826" alt="image" src="https://github.com/user-attachments/assets/64f602cf-0cdf-427f-ad55-78e1579051f1" />
 - <img width="1600" height="837" alt="image" src="https://github.com/user-attachments/assets/1bde69d2-23a0-49ea-8057-c4420aeef5f3" />
 
-# Proyecto Full Stack - Anderson Ortiz
+# Proyecto Full Stack
 
-# Proyecto Full Stack - Anderson Ortiz
-
-Este proyecto consta de un Frontend en Angular y un Backend en Node.js.
+**Este proyecto consta de un Frontend en Angular y un Backend en Node.js.
 
 - Canales de Pago 
 - Atención Personalizada
 - Suministros Esenciales
 
 # Tecnologias utilizadas
-Lenguajes, frameworks o librerías.
-Frontend
+
+-Lenguajes, frameworks o librerías.
+- Frontend: `Angular`
+- Backend: `Node.js`
+- Base de datos: `Mysql`
 - SCSS
-Backend
+
 
