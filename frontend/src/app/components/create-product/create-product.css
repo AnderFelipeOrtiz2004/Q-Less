@@ -104,6 +104,7 @@
 }
 
 .form-group input[type="text"],
+.form-group select,
 .form-group input[type="number"],
 .form-group textarea {
   padding: 0.75rem;
@@ -115,6 +116,7 @@
 }
 
 .form-group input[type="text"]:focus,
+.form-group select:focus,
 .form-group input[type="number"]:focus,
 .form-group textarea:focus {
   outline: none;
@@ -123,6 +125,7 @@
 }
 
 .form-group input[type="text"]:disabled,
+.form-group select:disabled,
 .form-group input[type="number"]:disabled,
 .form-group textarea:disabled {
   background-color: #f5f5f5;
@@ -174,7 +177,7 @@
   border-radius: 50%;
   width: 30px;
   height: 30px;
-  font-size: 1.2rem;
+  font-size: 1rem;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -280,6 +283,72 @@
 .alerts-container {
   margin-bottom: 20px;
   animation: slideIn 0.3s ease-out;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 999;
+}
+
+.status-modal {
+  width: min(420px, 100%);
+  background: white;
+  border-radius: 14px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+}
+
+.status-icon {
+  width: 78px;
+  height: 78px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e8f6cf;
+  color: #4d8d00;
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.status-icon.error {
+  background: #fde4e4;
+  color: #c82333;
+}
+
+.status-modal h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  color: #2d2d2d;
+}
+
+.status-modal p {
+  margin: 0 0 1.5rem;
+  color: #444;
+  font-size: 1rem;
+}
+
+.modal-button {
+  min-width: 120px;
+  border: none;
+  border-radius: 8px;
+  background: #6ba308;
+  color: white;
+  padding: 0.8rem 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modal-button.error {
+  background: #dc3545;
 }
 
 @keyframes slideIn {

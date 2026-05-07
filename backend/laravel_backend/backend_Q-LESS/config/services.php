@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'openai' => [
+        'provider' => env('CHATBOT_PROVIDER', 'local'),
+        'api_key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-5.4-mini'),
+        'timeout' => env('OPENAI_TIMEOUT', 25),
+    ],
+
 ];

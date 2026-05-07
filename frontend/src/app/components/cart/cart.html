@@ -1,0 +1,144 @@
+<div class="cart-wrapper">
+  <header class="main-header">
+    <div class="brand">
+      <h1>Q-LESS</h1>
+    </div>
+    <nav class="main-nav">
+      <a routerLink="/home">Inicio</a>
+      <a routerLink="/productos">Productos</a>
+      <a routerLink="/chatbot">ChatBot</a>
+      <a *ngIf="isAdmin" routerLink="/pedidos">Pedidos</a>
+      <a routerLink="/carrito" class="active-link">Carrito</a>
+    </nav>
+    <div class="top-actions">
+      <button class="btn-logout" (click)="logout()">Cerrar Sesion</button>
+    </div>
+  </header>
+
+  <main class="cart-content">
+    <section class="cart-panel">
+      <div class="section-head">
+        <div>
+          <h2>Carrito de compras</h2>
+          <p>Consulta los productos agregados antes de pagar.</p>
+        </div>
+        <button class="btn-clear" type="button" (click)="clearCart()" [disabled]="cartItems.length === 0">
+          Vaciar carrito
+        </button>
+      </div>
+
+      <div *ngIf="cartItems.length > 0; else emptyCart" class="cart-list">
+        <div *ngIf="cartMessage" class="cart-message">
+          {{ cartMessage }}
+        </div>
+        <article class="cart-item" *ngFor="let item of cartItems; trackBy: trackByProductId">
+          <div class="item-image">
+            <img [src]="getImageUrl(item)" (error)="onImageError($event)" [alt]="item.nombre" />
+          </div>
+          <div class="item-info">
+            <h3>{{ item.nombre }}</h3>
+            <p>Cantidad: {{ item.cantidad }}</p>
+            <p>Precio unitario: {{ item.precio }} Pesos</p>
+            <p class="item-stock">Disponibles restantes: {{ item.stock_available ?? 0 }}</p>
+            <p class="reservation-time">Reserva activa por {{ getRemainingTime(item) }}</p>
+          </div>
+          <div class="item-actions">
+            <strong>{{ item.precio * item.cantidad }} Pesos</strong>
+            <div class="quantity-actions">
+              <button type="button" class="btn-qty" (click)="decreaseItem(item.id)" [disabled]="isItemLoading(item.id)">-</button>
+              <span class="qty-value">{{ item.cantidad }}</span>
+              <button type="button" class="btn-qty" (click)="increaseItem(item)" [disabled]="!canIncrease(item)">+</button>
+            </div>
+            <button type="button" class="btn-remove" (click)="removeItem(item.id)" [disabled]="isItemLoading(item.id)">Quitar</button>
+          </div>
+        </article>
+      </div>
+
+      <ng-template #emptyCart>
+        <div class="empty-state">
+          <h3>Tu carrito esta vacio</h3>
+          <p>Agrega productos desde el catalogo para verlos aqui.</p>
+          <a routerLink="/productos" class="btn-shop">Ir a productos</a>
+        </div>
+      </ng-template>
+    </section>
+
+    <aside class="summary-panel">
+      <h3>Resumen</h3>
+      <div class="summary-row">
+        <span>Productos</span>
+        <strong>{{ getTotalItems() }}</strong>
+      </div>
+      <div class="summary-row total">
+        <span>Total</span>
+        <strong>{{ total }} Pesos</strong>
+      </div>
+      <button type="button" class="btn-pay" (click)="checkout()" [disabled]="cartItems.length === 0">
+        Pagar
+      </button>
+    </aside>
+  </main>
+
+  <div *ngIf="showPaymentModal" class="modal-backdrop">
+    <div class="payment-modal">
+      <div *ngIf="!paymentSuccess; else successState">
+        <div class="modal-head">
+          <div>
+            <h3>Pasarela de pago simulada</h3>
+            <p>Completa los datos para confirmar tu compra.</p>
+          </div>
+          <button type="button" class="btn-close" (click)="closePaymentModal()">×</button>
+        </div>
+
+        <div *ngIf="paymentErrors.length > 0" class="payment-errors">
+          <p *ngFor="let error of paymentErrors">{{ error }}</p>
+        </div>
+
+        <form class="payment-form" (ngSubmit)="confirmPayment()">
+          <div class="form-group">
+            <label>Nombre completo</label>
+            <input type="text" [(ngModel)]="paymentForm.nombre" name="nombre" />
+          </div>
+
+          <div class="form-group">
+            <label>Documento</label>
+            <input type="text" [(ngModel)]="paymentForm.documento" name="documento" />
+          </div>
+
+          <div class="form-group">
+            <label>Metodo de pago</label>
+            <select [(ngModel)]="paymentForm.metodo" name="metodo">
+              <option value="tarjeta">Tarjeta</option>
+              <option value="PSE">PSE</option>
+              <option value="efectivo">Efectivo</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Referencia</label>
+            <input type="text" [(ngModel)]="paymentForm.referencia" name="referencia" placeholder="Ej: QLESS-2026-001" />
+          </div>
+
+          <div class="payment-summary">
+            <span>Total a pagar</span>
+            <strong>{{ total }} Pesos</strong>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-clear" (click)="closePaymentModal()">Cancelar</button>
+            <button type="submit" class="btn-pay">Confirmar pago</button>
+          </div>
+        </form>
+      </div>
+
+      <ng-template #successState>
+        <div class="success-state">
+          <div class="success-icon">OK</div>
+          <h3>Pago exitoso</h3>
+          <p>La compra fue registrada en la pasarela simulada y tu carrito se vacio correctamente.</p>
+          <button type="button" class="btn-pay" (click)="closePaymentModal()">Hecho</button>
+        </div>
+      </ng-template>
+    </div>
+  </div>
+</div>

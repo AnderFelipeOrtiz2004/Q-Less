@@ -1,9 +1,8 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule } from '@angular/router';
-import { Router } from '@angular/router';
-import { AuthService } from '../../services/auth.js'; 
+import { RouterModule, Router } from '@angular/router';
+import { AuthService } from '../../services/auth.js';
 
 @Component({
   selector: 'app-login',
@@ -32,15 +31,15 @@ export class LoginComponent {
     let isValid = true;
 
     if (!this.credentials.email.trim()) {
-      this.addError('danger', 'El email es requerido para iniciar sesión');
+      this.addError('danger', 'El email es requerido para iniciar sesion');
       isValid = false;
     } else if (!this.isValidEmail(this.credentials.email)) {
-      this.addError('warning', 'El email no tiene un formato válido. Usa: usuario@dominio.com');
+      this.addError('warning', 'El email no tiene un formato valido. Usa: usuario@dominio.com');
       isValid = false;
     }
 
     if (!this.credentials.password.trim()) {
-      this.addError('danger', 'La contraseña es requerida');
+      this.addError('danger', 'La contrasena es requerida');
       isValid = false;
     }
 
@@ -70,8 +69,10 @@ export class LoginComponent {
           if (res?.user?.id) {
             localStorage.setItem('user_id', String(res.user.id));
           }
+
+          this.authService.saveUserRole(res?.role || res?.user?.rol || 'usuario');
           this.authService.saveToken(res.token);
-          this.addError('success', 'Bienvenido! Iniciando sesión...');
+          this.addError('success', 'Bienvenido! Iniciando sesion...');
           setTimeout(() => {
             this.router.navigate(['/home']);
           }, 1500);
@@ -84,23 +85,23 @@ export class LoginComponent {
         console.error('Error:', err);
 
         if (err?.status === 401) {
-          this.addError('danger', 'Email o contraseña incorrectos. Verifica tus credenciales.');
+          this.addError('danger', 'Email o contrasena incorrectos. Verifica tus credenciales.');
         } else if (err?.status === 422) {
-          this.addError('danger', 'Email o contraseña incorrectos. Intenta de nuevo.');
+          this.addError('danger', 'Email o contrasena incorrectos. Intenta de nuevo.');
         } else if (err?.status === 429) {
           this.addError('danger', 'Demasiados intentos fallidos. Intenta en unos minutos.');
         } else if (err?.status === 0) {
-          this.addError('danger', 'No se pudo conectar al servidor. Verifica tu conexión de internet.');
+          this.addError('danger', 'No se pudo conectar al servidor. Verifica tu conexion de internet.');
         } else if (err?.status === 500) {
-          this.addError('danger', 'Error del servidor. Intenta más tarde.');
+          this.addError('danger', 'Error del servidor. Intenta mas tarde.');
         } else if (err?.error?.message?.includes('email')) {
-          this.addError('danger', 'El email no está registrado. ¿Quieres crear una cuenta?');
+          this.addError('danger', 'El email no esta registrado. Quieres crear una cuenta?');
         } else if (err?.error?.message?.includes('password')) {
-          this.addError('danger', 'La contraseña no es correcta.');
+          this.addError('danger', 'La contrasena no es correcta.');
         } else if (err?.error?.message) {
           this.addError('danger', err.error.message);
         } else {
-          this.addError('danger', 'Error al iniciar sesión. Intenta de nuevo.');
+          this.addError('danger', 'Error al iniciar sesion. Intenta de nuevo.');
         }
       }
     });

@@ -1,18 +1,15 @@
 :host {
   display: block;
   min-height: 100vh;
-  background: #82C91E;
+  background: #82c91e;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   color: #1d3323;
-  width: 100%;
-  margin: 0;
-  padding: 0;
 }
 
-.home-wrapper {
+.products-wrapper {
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
 }
 
 .main-header {
@@ -21,7 +18,7 @@
   justify-content: space-between;
   background: white;
   padding: 1rem 2rem;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15);
   border-radius: 0 0 16px 16px;
 }
 
@@ -34,18 +31,13 @@
 
 .main-nav {
   display: flex;
-  gap: 1.5rem;
+  gap: 1.25rem;
 }
 
 .main-nav a {
   text-decoration: none;
   color: #457520;
   font-weight: 600;
-  transition: opacity 0.3s;
-}
-
-.main-nav a:hover {
-  opacity: 0.7;
 }
 
 .top-actions {
@@ -58,7 +50,6 @@
   padding: 0.5rem 1rem;
   border: 1px solid #d9d9d9;
   border-radius: 8px;
-  font-size: 0.95rem;
 }
 
 .cart-link {
@@ -99,77 +90,59 @@
   padding: 0 0.35rem;
 }
 
-.btn-create {
-  background: #1f7a1f;
-  color: white;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
+.btn-logout,
+.btn-create,
+.btn-add,
+.btn-edit {
+  border: none;
   border-radius: 8px;
-  font-weight: 700;
-  transition: background 0.3s;
-}
-
-.btn-create:hover {
-  background: #176a17;
+  padding: 0.6rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-logout {
   background: #dc3545;
   color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: background 0.3s;
 }
 
-.btn-logout:hover {
-  background: #c82333;
+.btn-create,
+.btn-add {
+  background: #6ba308;
+  color: white;
 }
 
-.hero {
-  background: #f5f9f1;
-  margin: 1rem 2rem 0;
-  border-radius: 16px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+.btn-add.in-cart {
+  background: #3f7d0f;
 }
 
-.hero h2 {
-  margin: 0 0 0.5rem 0;
-  color: #1d3323;
-  font-size: 1.6rem;
-}
-
-.hero p {
-  margin: 0;
-  color: #666;
-  font-size: 0.95rem;
+.btn-edit {
+  background: #f2c94c;
+  color: #3b2d00;
 }
 
 .content-section {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 240px 1fr;
   gap: 1.5rem;
   padding: 1.5rem 2rem 2rem;
   flex: 1;
 }
 
-.sidebar-colecciones {
+.sidebar-colecciones,
+.productos-section {
   background: white;
   border-radius: 12px;
   padding: 1.5rem;
-  height: fit-content;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .sidebar-colecciones h3 {
   margin: 0 0 1rem 0;
-  color: #333;
-  font-size: 1.1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 2px solid #e0e0e0;
 }
 
 .collection-list {
@@ -179,42 +152,20 @@
 }
 
 .collection-item {
-  appearance: none;
-  -webkit-appearance: none;
-  background: transparent;
-  border: none;
   width: 100%;
+  border: 1px solid #e6e6e6;
+  background: #f7f7f7;
+  padding: 0.8rem;
+  border-radius: 8px;
   text-align: left;
+  color: #4f4f4f;
   cursor: pointer;
-  padding: 0.75rem;
-  color: #666;
-  text-decoration: none;
-  border-bottom: 1px solid #f0f0f0;
-  transition: color 0.3s, padding-left 0.3s;
-  font-size: 0.95rem;
-  font-family: inherit;
-}
-
-.collection-item:hover {
-  color: #2c7a09;
-  padding-left: 0.5rem;
 }
 
 .collection-item.active {
-  color: #2c7a09;
   background: #eef8d9;
-  border-radius: 8px;
-}
-
-.collection-item:last-child {
-  border-bottom: none;
-}
-
-.productos-section {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border-color: #82c91e;
+  color: #2c7a09;
 }
 
 .section-head {
@@ -228,7 +179,6 @@
 .section-title {
   margin: 0;
   color: #333;
-  font-size: 1.4rem;
 }
 
 .section-copy {
@@ -255,19 +205,11 @@
   border-radius: 14px;
   overflow: hidden;
   background: #fafafa;
-  transition: transform 0.3s, box-shadow 0.3s;
-}
-
-.product-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 .product-image {
-  width: 100%;
-  height: 160px;
-  overflow: hidden;
-  background: #e0e0e0;
+  height: 150px;
+  background: #ececec;
 }
 
 .product-image img {
@@ -281,17 +223,20 @@
 }
 
 .product-name {
-  margin: 0 0 0.5rem 0;
-  color: #333;
-  font-size: 0.95rem;
-  font-weight: 600;
-  line-height: 1.3;
+  margin: 0 0 0.5rem;
+  color: #2d2d2d;
 }
 
 .product-price {
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.75rem;
   color: #2c7a09;
-  font-size: 1rem;
+  font-weight: 700;
+}
+
+.product-stock-warning {
+  margin: -0.35rem 0 0.75rem;
+  color: #c62828;
+  font-size: 0.88rem;
   font-weight: 700;
 }
 
@@ -308,95 +253,31 @@
   gap: 0.5rem;
 }
 
-.btn-add,
-.btn-edit {
-  border: none;
-  border-radius: 8px;
-  padding: 0.6rem 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-add {
-  background: #6ba308;
-  color: white;
-}
-
-.btn-add.in-cart {
-  background: #3f7d0f;
-}
-
-.btn-edit {
-  background: #f2c94c;
-  color: #3b2d00;
-  transition: background 0.3s;
-}
-
-.btn-edit:hover {
-  background-color: #e4ba37;
-}
-
 .empty-state {
-  grid-column: 1 / -1;
+  padding: 3rem 1rem;
   text-align: center;
-  padding: 2rem;
-  color: #999;
-}
-
-.empty-state p {
-  margin: 0;
-  font-size: 1rem;
+  color: #909090;
 }
 
 @media (max-width: 768px) {
-  .content-section {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-    padding: 1rem;
-  }
-
-  .sidebar-colecciones {
-    order: 2;
-  }
-
-  .productos-section {
-    order: 1;
-  }
-
-  .products-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 1rem;
-  }
-
   .main-header {
     flex-direction: column;
-    gap: 0.75rem;
-    padding: 1rem;
+    gap: 0.8rem;
   }
 
-  .main-nav {
-    gap: 1rem;
-    font-size: 0.9rem;
+  .content-section {
+    grid-template-columns: 1fr;
+    padding: 1rem;
   }
 
   .top-actions {
-    flex-direction: column;
     width: 100%;
+    flex-direction: column;
   }
 
   .top-actions input,
-  .btn-create,
   .btn-logout {
     width: 100%;
-  }
-
-  .hero {
-    margin: 1rem;
-    padding: 1rem;
   }
 
   .section-head {

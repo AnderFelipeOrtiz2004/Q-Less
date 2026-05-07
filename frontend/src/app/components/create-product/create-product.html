@@ -9,7 +9,7 @@
       <a href="#">Blog</a>
     </nav>
     <div class="top-actions">
-      <button class="btn-logout" (click)="goHome()">Cerrar Sesión</button>
+      <button class="btn-logout" (click)="goHome()">Cerrar Sesion</button>
     </div>
   </header>
 
@@ -29,8 +29,13 @@
           <input type="text" [(ngModel)]="name" name="name" required [disabled]="isLoading" />
         </div>
         <div class="form-group">
-          <label>Categoría</label>
-          <input type="text" placeholder="Ej: Cuadernos" name="category" [disabled]="isLoading" />
+          <label>Categoria</label>
+          <select [(ngModel)]="category" name="category" [disabled]="isLoading" required>
+            <option value="">Selecciona una categoria</option>
+            <option *ngFor="let categoryOption of categories" [value]="categoryOption">
+              {{ categoryOption }}
+            </option>
+          </select>
         </div>
       </div>
 
@@ -51,30 +56,44 @@
       </div>
 
       <div class="form-group full-width">
-        <label>Imagenes del producto</label>
+        <label>Imagen del producto</label>
         <div class="image-upload-section">
           <input type="file" (change)="onFileSelected($event)" accept="image/png,image/jpg,image/jpeg" [disabled]="isLoading" style="display: none;" #fileInput />
           <div class="image-placeholders">
             <div class="image-placeholder" (click)="fileInput.click()">
               <img *ngIf="imagePreview" [src]="imagePreview" alt="Vista previa" style="width: 100%; height: 100%; object-fit: cover; border-radius: 6px;" />
               <span *ngIf="!imagePreview">+</span>
-              <button *ngIf="imagePreview" type="button" class="btn-remove-image" (click)="clearImage(); $event.stopPropagation();">✕</button>
+              <button *ngIf="imagePreview" type="button" class="btn-remove-image" (click)="clearImage(); $event.stopPropagation();">X</button>
             </div>
             <div class="image-placeholder-empty"></div>
             <div class="image-placeholder-empty"></div>
             <div class="image-placeholder-empty"></div>
             <div class="image-placeholder-empty"></div>
           </div>
-          <small class="text-muted">Formatos: PNG, JPG, JPEG (máx. 5MB)</small>
+          <small class="text-muted">Formatos: PNG, JPG, JPEG (max. 5MB)</small>
         </div>
       </div>
 
       <div class="form-actions">
-        <button type="button" class="btn-cancel" routerLink="/home">Cancelar</button>
+        <button type="button" class="btn-cancel" (click)="cancel()">Cancelar</button>
         <button type="submit" class="btn-create" [disabled]="isLoading">
-          {{ isLoading ? 'Guardando...' : 'Crear_producto' }}
+          {{ isLoading ? 'Guardando...' : 'Crear producto' }}
         </button>
       </div>
     </form>
   </main>
+
+  <div *ngIf="showModal" class="modal-backdrop">
+    <div class="status-modal" [class.error]="modalType === 'error'">
+      <div class="status-icon" [class.error]="modalType === 'error'">
+        <span *ngIf="modalType === 'success'">OK</span>
+        <span *ngIf="modalType === 'error'">!</span>
+      </div>
+      <h3>{{ modalTitle }}</h3>
+      <p>{{ modalMessage }}</p>
+      <button type="button" class="modal-button" [class.error]="modalType === 'error'" (click)="closeModal()">
+        Hecho
+      </button>
+    </div>
+  </div>
 </div>

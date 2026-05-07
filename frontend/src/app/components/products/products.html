@@ -1,4 +1,4 @@
-<div class="home-wrapper">
+<div class="products-wrapper">
   <header class="main-header">
     <div class="brand">
       <h1>Q-LESS</h1>
@@ -11,7 +11,7 @@
       <a href="#">Blog</a>
     </nav>
     <div class="top-actions">
-      <input type="search" placeholder="Buscar productos..." [(ngModel)]="searchText" (ngModelChange)="applyFilters()" />
+      <input type="search" placeholder="Buscar..." [(ngModel)]="searchText" (ngModelChange)="applyFilters()" />
       <a class="cart-link" routerLink="/carrito" aria-label="Ir al carrito">
         <span class="cart-icon">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -21,15 +21,10 @@
         <span>Carrito</span>
         <strong class="cart-badge">{{ cartCount }}</strong>
       </a>
-      <a *ngIf="isAdmin" class="btn-create" routerLink="/nuevo-producto">+ Crear Producto</a>
+      <a *ngIf="isAdmin" class="btn-create" routerLink="/nuevo-producto">Crear producto</a>
       <button class="btn-logout" (click)="logout()">Cerrar Sesion</button>
     </div>
   </header>
-
-  <section class="hero">
-    <h2>Bienvenido, {{ userName }}</h2>
-    <p>Administra tus productos desde un panel moderno y rapido.</p>
-  </section>
 
   <main class="content-section">
     <aside class="sidebar-colecciones">
@@ -51,7 +46,7 @@
       <div class="section-head">
         <div>
           <h2 class="section-title">Productos favoritos</h2>
-          <p class="section-copy">Explora el inventario disponible de la papeleria virtual desde el inicio.</p>
+          <p class="section-copy">Explora el inventario disponible de la papeleria virtual.</p>
         </div>
       </div>
 
@@ -60,29 +55,31 @@
       </div>
 
       <div *ngIf="filteredProducts.length > 0" class="products-grid">
-        <article *ngFor="let p of filteredProducts" class="product-card">
+        <article *ngFor="let product of filteredProducts" class="product-card">
           <div class="product-image">
-            <img [src]="getImageUrl(p)" (error)="onImageError($event)" alt="{{ p.nombre }}" />
+            <img [src]="getImageUrl(product)" (error)="onImageError($event)" [alt]="product.nombre" />
           </div>
           <div class="product-body">
-            <h3 class="product-name">{{ p.nombre }}</h3>
-            <p class="product-price">{{ p.precio }} Pesos</p>
+            <h3 class="product-name">{{ product.nombre }}</h3>
+            <p class="product-price">{{ product.precio }} Pesos</p>
+            <p *ngIf="isAdmin && product.stock < 5" class="product-stock-warning">
+              Hay poco stock disponible
+            </p>
             <p class="product-description">
-              {{ p.descripcion || 'Producto disponible en catalogo.' }}
+              {{ product.descripcion || 'Producto disponible en catalogo.' }}
             </p>
             <div class="product-actions">
-              <button type="button" class="btn-add" [class.in-cart]="isInCart(p.id)" (click)="addToCart(p)">
-                {{ isInCart(p.id) ? 'Agregar mas' : 'Agregar' }}
+              <button type="button" class="btn-add" [class.in-cart]="isInCart(product.id)" (click)="addToCart(product)">
+                {{ isInCart(product.id) ? 'Agregar mas' : 'Agregar' }}
               </button>
-              <a *ngIf="isAdmin" class="btn-edit" [routerLink]="['/editar-producto', p.id]" [state]="{ product: p }">Editar</a>
+              <a *ngIf="isAdmin" class="btn-edit" [routerLink]="['/editar-producto', product.id]" [state]="{ product: product }">Editar</a>
             </div>
           </div>
         </article>
       </div>
 
       <div *ngIf="filteredProducts.length === 0" class="empty-state">
-        <p *ngIf="searchText.trim().length > 0">No se encontraron productos para "{{ searchText }}"</p>
-        <p *ngIf="searchText.trim().length === 0">No hay productos de momento. Crea el primero.</p>
+        <p>No hay productos para mostrar con el filtro seleccionado.</p>
       </div>
     </section>
   </main>

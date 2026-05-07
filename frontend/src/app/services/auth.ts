@@ -22,13 +22,26 @@ export class AuthService {
     localStorage.setItem('auth_token', token);
   }
 
+  saveUserRole(role: string): void {
+    localStorage.setItem('user_role', role);
+  }
+
   getToken(): string | null {
     return localStorage.getItem('auth_token');
+  }
+
+  getUserRole(): string {
+    return localStorage.getItem('user_role') || 'usuario';
+  }
+
+  isAdmin(): boolean {
+    return this.getUserRole() === 'admin';
   }
 
   logout(): void {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_name');
     localStorage.removeItem('user_id');
+    localStorage.removeItem('user_role');
   }
 }

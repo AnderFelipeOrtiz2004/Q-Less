@@ -1,0 +1,130 @@
+:host {
+  display: block;
+  min-height: 100vh;
+  background: #82c91e;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #1d3323;
+}
+
+.orders-wrapper {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  padding: 1rem 2rem;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.15);
+  border-radius: 0 0 16px 16px;
+}
+
+.brand h1 {
+  margin: 0;
+  color: #2c7a09;
+  font-size: 1.8rem;
+  letter-spacing: 2px;
+}
+
+.main-nav {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.main-nav a {
+  text-decoration: none;
+  color: #457520;
+  font-weight: 600;
+}
+
+.active-link {
+  color: #2c7a09;
+}
+
+.btn-logout {
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.65rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.orders-content {
+  padding: 1.5rem 2rem 2rem;
+  flex: 1;
+}
+
+.orders-panel {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.section-head {
+  margin-bottom: 1.5rem;
+}
+
+.section-head h2 {
+  margin: 0;
+  color: #333;
+}
+
+.section-head p {
+  margin: 0.35rem 0 0;
+  color: #6b6b6b;
+}
+
+.empty-state {
+  min-height: 420px;
+  border: 1px dashed #d7e5c4;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #f8fbf2 0%, #ffffff 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+}
+
+.empty-icon {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: #e8f6cf;
+  color: #4d8d00;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  margin-bottom: 1rem;
+}
+
+.empty-state h3 {
+  margin: 0 0 0.5rem;
+  color: #2d2d2d;
+}
+
+.empty-state p {
+  margin: 0;
+  max-width: 520px;
+  color: #6b6b6b;
+}
+
+@media (max-width: 768px) {
+  .main-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .orders-content {
+    padding: 1rem;
+  }
+}

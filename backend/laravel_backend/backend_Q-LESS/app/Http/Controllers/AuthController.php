@@ -9,6 +9,8 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
+    private string $adminEmail = 'daniandrescubidesh@gmail.com';
+
     public function register(Request $request)
     {
         $request->validate([
@@ -22,7 +24,7 @@ class AuthController extends Controller
             'name' => $request->name,
             'email' => $request->email,
             'telefono' => $request->telefono,
-            'rol' => 'usuario',
+            'rol' => $request->email === $this->adminEmail ? 'admin' : 'usuario',
             'password' => Hash::make($request->password),
         ]);
 
@@ -55,11 +57,19 @@ class AuthController extends Controller
             ], 401);
         }
 
+        $role = $user->email === $this->adminEmail ? 'admin' : 'usuario';
+
+        if ($user->rol !== $role) {
+            $user->rol = $role;
+            $user->save();
+        }
+
         return response()->json([
             'status' => true,
             'message' => 'Login exitoso',
             'token' => Str::random(64),
             'user' => $user,
+            'role' => $role,
         ]);
     }
 

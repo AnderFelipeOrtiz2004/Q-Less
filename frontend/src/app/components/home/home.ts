@@ -1,10 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { AuthService } from '../../services/auth.js';
 import { ProductService } from '../../services/product.service.js';
+import { CartService } from '../../services/cart.service.js';
 
 @Component({
   selector: 'app-home',
@@ -13,18 +14,31 @@ import { ProductService } from '../../services/product.service.js';
   templateUrl: './home.html',
   styleUrl: './home.css'
 })
-export class HomeComponent implements OnInit {
+export class HomeComponent implements OnInit, OnDestroy {
+  readonly categories = [
+    'Todos',
+    'Cuadernos y libretas',
+    'Lapices y marcadores',
+    'Cartulinas y hojas',
+    'Herramientas escolares'
+  ];
+
   userName: string | null = '';
   loggedUserId: number | null = null;
   productos: any[] = [];
+  filteredProducts: any[] = [];
   hasProductos = false;
   searchText = '';
-  newProduct: any = { name: '', description: '', price: null, stock: null };
-  editingId: number | null = null;
+  cartCount = 0;
+  selectedCategory = 'Todos';
+  cartMessage = '';
+
   constructor(
     private authService: AuthService,
     private router: Router,
-    private productService: ProductService
+    private productService: ProductService,
+    private cartService: CartService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -32,6 +46,10 @@ export class HomeComponent implements OnInit {
 
     const userIdValue = localStorage.getItem('user_id');
     this.loggedUserId = userIdValue ? Number(userIdValue) : null;
+    this.cartService.syncCurrentUser();
+    this.cartService.items$.subscribe(() => {
+      this.cartCount = this.cartService.getCount();
+    });
 
     this.loadProducts();
 
@@ -42,6 +60,10 @@ export class HomeComponent implements OnInit {
         this.loadProducts();
       }
     });
+
+  }
+
+  ngOnDestroy(): void {
   }
 
   loadProducts(): void {
@@ -50,29 +72,34 @@ export class HomeComponent implements OnInit {
         const data = Array.isArray(response) ? response : response?.data || [];
         this.productos = data;
         this.hasProductos = this.productos.length > 0;
+        this.applyFilters();
+        this.cdr.detectChanges();
         console.log('Productos cargados:', this.productos);
       },
       error => {
         console.error('Error cargando productos', error);
-        if (this.productos.length === 0) {
-          this.hasProductos = false;
-        } else {
-          this.hasProductos = true;
-        }
+        this.hasProductos = this.productos.length > 0;
+        this.applyFilters();
+        this.cdr.detectChanges();
       }
     );
   }
 
-  get filteredProducts(): any[] {
-    if (!this.searchText?.trim()) {
-      return this.productos;
-    }
+  applyFilters(): void {
     const term = this.searchText.toLowerCase();
-    return this.productos.filter(p => {
-      return (
+
+    this.filteredProducts = this.productos.filter(p => {
+      const matchesSearch = !this.searchText?.trim() || (
         (p.nombre && p.nombre.toLowerCase().includes(term)) ||
         (p.descripcion && p.descripcion.toLowerCase().includes(term))
       );
+
+      if (this.selectedCategory === 'Todos') {
+        return matchesSearch;
+      }
+
+      const productCategory = (p.categoria || '').toLowerCase();
+      return matchesSearch && productCategory.includes(this.selectedCategory.toLowerCase());
     });
   }
 
@@ -80,7 +107,7 @@ export class HomeComponent implements OnInit {
     if (!product || !product.image_path) {
       return 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="%23f0f0f0" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial" font-size="14">Sin imagen</text></svg>';
     }
-    
+
     return product.image_path;
   }
 
@@ -89,66 +116,42 @@ export class HomeComponent implements OnInit {
     event.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="%23ff6b6b" width="200" height="200"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial" font-size="12" fill="white">Error al cargar</text></svg>';
   }
 
-  esDueno(producto: any): boolean {
-    if (!producto) {
-      return false;
-    }
-    return Number(producto.user_id) === this.loggedUserId;
-  }
-
-
-  saveProduct(): void {
-    if (this.editingId !== null) {
-      this.productService.updateProduct(this.editingId, this.newProduct).subscribe(
-        () => {
-          this.resetProductForm();
-          this.loadProducts(); 
-        },
-        error => {
-          console.error('Error actualizando producto', error);
-        }
-      );
-      return;
-    }
-
-    this.productService.createProduct(this.newProduct).subscribe(
-      () => {
-        this.resetProductForm();
-        this.loadProducts(); 
-      },
-      error => {
-        console.error('Error creando producto', error);
-      }
-    );
-  }
-
-  editProduct(product: any): void {
-    this.editingId = product.id;
-    this.newProduct = { ...product };
-  }
-
-  deleteProduct(id: number): void {
-    this.productService.deleteProduct(id).subscribe(
-      () => {
-        this.loadProducts();
-      },
-      error => {
-        console.error('Error eliminando producto', error);
-      }
-    );
-  }
-
-  eliminar(id: number): void {
-    this.deleteProduct(id);
-  }
-
   logout(): void {
-    localStorage.clear();
+    this.authService.logout();
     this.router.navigate(['/login']);
   }
 
-  resetProductForm(): void {
-    this.editingId = null;
-    this.newProduct = { name: '', description: '', price: null, stock: null };
+  get isAdmin(): boolean {
+    return this.authService.isAdmin();
+  }
+
+  addToCart(product: any): void {
+    this.cartMessage = '';
+    this.cartService.addItem(product).subscribe({
+      next: () => {
+        this.cartCount = this.cartService.getCount();
+        const target = this.productos.find(p => p.id === product.id);
+        if (target && typeof target.stock === 'number' && target.stock > 0) {
+          target.stock -= 1;
+        }
+        this.applyFilters();
+      },
+      error: (error) => {
+        console.error('Error agregando al carrito', error);
+        this.cartMessage = error?.error?.errors?.producto_id?.[0]
+          || error?.error?.errors?.carrito?.[0]
+          || error?.error?.message
+          || 'No se pudo agregar el producto al carrito.';
+      }
+    });
+  }
+
+  isInCart(productId: number): boolean {
+    return this.cartService.hasItem(productId);
+  }
+
+  setCategory(category: string): void {
+    this.selectedCategory = category;
+    this.applyFilters();
   }
 }

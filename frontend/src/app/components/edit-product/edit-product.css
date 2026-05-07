@@ -104,6 +104,7 @@
 }
 
 .form-group input[type="text"],
+.form-group select,
 .form-group input[type="number"],
 .form-group textarea {
   padding: 0.75rem;
@@ -115,6 +116,7 @@
 }
 
 .form-group input[type="text"]:focus,
+.form-group select:focus,
 .form-group input[type="number"]:focus,
 .form-group textarea:focus {
   outline: none;
@@ -123,6 +125,7 @@
 }
 
 .form-group input[type="text"]:disabled,
+.form-group select:disabled,
 .form-group input[type="number"]:disabled,
 .form-group textarea:disabled {
   background-color: #f5f5f5;
