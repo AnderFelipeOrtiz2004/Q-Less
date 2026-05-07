@@ -283,7 +283,7 @@ class ChatbotRecommendationService
         }
 
         if (count($available) === 0 && count($alternatives) === 0) {
-            foreach ($products->where('stock', '>', 0)->take(3) as $product) {
+            foreach ($products->where('stock', '>', 0) as $product) {
                 if (!isset($usedProductIds[$product->id])) {
                     $alternatives[] = $this->formatProduct($product, 'Producto disponible recomendado por el inventario');
                     $usedProductIds[$product->id] = true;
@@ -299,10 +299,6 @@ class ChatbotRecommendationService
 
                 $alternatives[] = $this->formatProduct($product, 'Tambien puede servirte como material complementario segun el inventario.');
                 $usedProductIds[$product->id] = true;
-
-                if (count($alternatives) >= 3) {
-                    break;
-                }
             }
         }
 

@@ -4,12 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Categoria;
 use App\Models\Producto;
+use App\Services\CartReservationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
 class ProductoController extends Controller
 {
+    public function __construct(private CartReservationService $cartReservationService)
+    {
+    }
+
     private function resolveCategoria(array &$data): void
     {
         $categoria = null;
@@ -69,6 +74,8 @@ class ProductoController extends Controller
 
     public function index()
     {
+        $this->cartReservationService->cleanupExpiredReservations();
+
         return response()->json(
             Producto::with(['categoriaRelacion', 'usuario'])->get()
         );
@@ -101,6 +108,8 @@ class ProductoController extends Controller
 
     public function show(string $id)
     {
+        $this->cartReservationService->cleanupExpiredReservations();
+
         return response()->json(
             Producto::with(['categoriaRelacion', 'usuario'])->findOrFail($id)
         );
