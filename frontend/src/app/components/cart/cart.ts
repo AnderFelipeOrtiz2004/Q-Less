@@ -1,14 +1,13 @@
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { Router, RouterModule } from '@angular/router';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../services/auth.js';
 import { CartItem, CartService } from '../../services/cart.service';
 
 @Component({
   selector: 'app-cart',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterModule],
+  imports: [CommonModule, RouterModule],
   templateUrl: './cart.html',
   styleUrl: './cart.css'
 })
@@ -16,26 +15,55 @@ export class CartComponent implements OnInit, OnDestroy {
   cartItems: CartItem[] = [];
   total = 0;
   cartMessage = '';
-  showPaymentModal = false;
-  paymentSuccess = false;
-  paymentErrors: string[] = [];
-  paymentForm = {
-    nombre: '',
-    documento: '',
-    metodo: 'tarjeta',
-    referencia: '',
-  };
+  isRedirectingToPayment = false;
   private countdownIntervalId: number | null = null;
   loadingItems = new Set<number>();
 
   constructor(
     private authService: AuthService,
     private cartService: CartService,
+    private route: ActivatedRoute,
     private router: Router,
     private cdr: ChangeDetectorRef
-  ) {}
+  ) { }
 
   ngOnInit(): void {
+    this.route.queryParamMap.subscribe(params => {
+      const paymentStatus = params.get('payment');
+
+      if (paymentStatus === 'success') {
+
+        this.cartMessage =
+          'Pago aprobado en Mercado Pago. Tu compra esta siendo confirmada.';
+
+        const userId = localStorage.getItem('user_id');
+
+        if (userId) {
+
+          this.cartService.createOrder(Number(userId))
+            .subscribe({
+
+              next: (response: any) => {
+
+                console.log('PEDIDO CREADO:', response);
+
+                this.cartMessage =
+                  `Pedido #${response.order.order_number} creado correctamente.`;
+
+              },
+
+              error: (error: any) => {
+
+                console.error('ERROR CREANDO PEDIDO:', error);
+
+                this.cartMessage =
+                  'No se pudo crear el pedido.';
+              }
+            });
+        }
+      }
+    });
+
     this.cartService.syncCurrentUser();
     this.cartService.items$.subscribe(items => {
       this.cartItems = items.map(item => ({ ...item }));
@@ -128,15 +156,97 @@ export class CartComponent implements OnInit, OnDestroy {
   }
 
   checkout(): void {
-    this.paymentErrors = [];
-    this.paymentSuccess = false;
-    this.paymentForm = {
-      nombre: localStorage.getItem('user_name') || '',
-      documento: '',
-      metodo: 'tarjeta',
-      referencia: '',
-    };
-    this.showPaymentModal = true;
+
+    if (this.cartItems.length === 0 || this.isRedirectingToPayment) {
+      return;
+    }
+
+    this.cartMessage = '';
+    this.isRedirectingToPayment = true;
+
+    this.cartService.createPaymentPreference().subscribe({
+
+      next: (response: any) => {
+
+        console.log('RESPUESTA EXITOSA:', response);
+
+        const paymentUrl =
+          response.init_point ||
+          response.sandbox_init_point;
+
+        if (!paymentUrl) {
+
+          console.error('Mercado Pago no devolvio URL');
+
+          this.isRedirectingToPayment = false;
+
+          this.cartMessage =
+            'Mercado Pago no devolvio una URL de pago valida.';
+
+          return;
+        }
+
+        console.log('ABRIENDO MERCADO PAGO:', paymentUrl);
+
+        const userId = localStorage.getItem('user_id');
+
+        if (userId) {
+
+          this.cartService.createOrder(Number(userId))
+            .subscribe({
+
+              next: (orderResponse: any) => {
+
+                console.log('PEDIDO CREADO:', orderResponse);
+
+                this.cartMessage =
+                  `Pedido #${orderResponse.order.order_number} creado correctamente.`;
+
+                window.open(paymentUrl, '_blank');
+
+                this.isRedirectingToPayment = false;
+              },
+
+              error: (error: any) => {
+
+                console.error('ERROR CREANDO PEDIDO:', error);
+
+                this.cartMessage =
+                  'No se pudo crear el pedido.';
+
+                this.isRedirectingToPayment = false;
+              }
+            });
+
+        } else {
+
+          this.cartMessage =
+            'Usuario no encontrado.';
+
+          this.isRedirectingToPayment = false;
+        }
+      },
+
+      error: (error) => {
+
+        console.error('ERROR COMPLETO:', error);
+
+        console.log('ERROR RESPONSE:', error?.error);
+
+        console.log(
+          'MERCADO PAGO ERROR:',
+          error?.error?.mercadopago_error
+        );
+
+        this.isRedirectingToPayment = false;
+
+        this.cartMessage =
+          error?.error?.mercadopago_error?.message
+          || error?.error?.message
+          || error?.message
+          || 'No se pudo abrir Mercado Pago en este momento.';
+      }
+    });
   }
 
   get isAdmin(): boolean {
@@ -158,49 +268,6 @@ export class CartComponent implements OnInit, OnDestroy {
 
   onImageError(event: any): void {
     event.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="220" height="180"><rect fill="%23ececec" width="220" height="180"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="Arial" font-size="13">No disponible</text></svg>';
-  }
-
-  closePaymentModal(): void {
-    this.showPaymentModal = false;
-    this.paymentErrors = [];
-    this.paymentSuccess = false;
-  }
-
-  confirmPayment(): void {
-    this.paymentErrors = [];
-
-    if (!this.paymentForm.nombre.trim()) {
-      this.paymentErrors.push('El nombre del comprador es obligatorio.');
-    }
-
-    if (!this.paymentForm.documento.trim()) {
-      this.paymentErrors.push('El documento es obligatorio.');
-    }
-
-    if (!this.paymentForm.metodo.trim()) {
-      this.paymentErrors.push('Debes seleccionar un metodo de pago.');
-    }
-
-    if (!this.paymentForm.referencia.trim()) {
-      this.paymentErrors.push('Ingresa una referencia de pago.');
-    }
-
-    if (this.paymentErrors.length > 0) {
-      return;
-    }
-
-    this.cartService.checkout(this.paymentForm).subscribe({
-      next: () => {
-        this.paymentSuccess = true;
-        this.total = 0;
-      },
-      error: (error) => {
-        console.error('Error confirmando pago', error);
-        this.paymentErrors = [
-          error?.error?.message || error?.message || 'No se pudo confirmar el pago en este momento.'
-        ];
-      }
-    });
   }
 
   getRemainingTime(item: CartItem): string {

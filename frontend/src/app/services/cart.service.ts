@@ -21,11 +21,21 @@ interface CartResponse {
   total: number;
 }
 
+interface PaymentPreferenceResponse {
+  status: boolean;
+  message: string;
+  external_reference: string;
+  preference_id: string;
+  init_point: string | null;
+  sandbox_init_point: string | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class CartService {
   private readonly API_URL = 'http://127.0.0.1:8000/api/carrito';
+  private readonly PAYMENT_URL = 'http://127.0.0.1:8000/api/payments';
   private readonly itemsSubject = new BehaviorSubject<CartItem[]>([]);
 
   readonly items$ = this.itemsSubject.asObservable();
@@ -126,6 +136,24 @@ export class CartService {
     }).pipe(
       tap((response) => this.itemsSubject.next(response.items || []))
     );
+  }
+
+  createPaymentPreference(): Observable<PaymentPreferenceResponse> {
+    const userId = this.getCurrentUserId();
+
+    if (!userId) {
+      return throwError(() => new Error('Debes iniciar sesion para pagar.'));
+    }
+
+    return this.http.post<PaymentPreferenceResponse>(`${this.PAYMENT_URL}/preference`, {
+      user_id: userId,
+    });
+  }
+
+  createOrder(userId: number) {
+    return this.http.post(`${this.PAYMENT_URL}/create-order`, {
+      user_id: userId,
+    });
   }
 
   private getCurrentUserId(): number | null {

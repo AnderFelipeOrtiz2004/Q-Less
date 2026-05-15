@@ -5,7 +5,9 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CartController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\ChatbotController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProductoController;
+use App\Http\Controllers\OrderController;
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
@@ -18,4 +20,9 @@ Route::patch('/carrito/{userId}/{productId}/decrease', [CartController::class, '
 Route::delete('/carrito/{userId}/{productId}', [CartController::class, 'remove']);
 Route::delete('/carrito/{userId}', [CartController::class, 'clear']);
 Route::post('/carrito/checkout', [CartController::class, 'checkout']);
+Route::post('/payments/preference', [PaymentController::class, 'createPreference']);
+Route::post('/payments/webhook', [PaymentController::class, 'webhook']);
 Route::apiResource('productos', ProductoController::class);
+Route::post('/payments/create-order', [PaymentController::class, 'createOrder']);
+Route::get('/orders', [OrderController::class, 'index']);
+Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus']);

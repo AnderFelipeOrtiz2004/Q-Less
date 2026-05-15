@@ -8,7 +8,6 @@
       <a routerLink="/productos">Productos</a>
       <a routerLink="/chatbot">ChatBot</a>
       <a *ngIf="isAdmin" routerLink="/pedidos">Pedidos</a>
-      <a href="#">Blog</a>
     </nav>
     <div class="top-actions">
       <input type="search" placeholder="Buscar..." [(ngModel)]="searchText" (ngModelChange)="applyFilters()" />

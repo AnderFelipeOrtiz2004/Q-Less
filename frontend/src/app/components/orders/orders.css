@@ -38,10 +38,15 @@
   text-decoration: none;
   color: #457520;
   font-weight: 600;
+  transition: 0.3s;
+}
+
+.main-nav a:hover {
+  color: #2c7a09;
 }
 
 .active-link {
-  color: #2c7a09;
+  color: #2c7a09 !important;
 }
 
 .btn-logout {
@@ -52,6 +57,11 @@
   padding: 0.65rem 1rem;
   font-weight: 600;
   cursor: pointer;
+  transition: 0.3s;
+}
+
+.btn-logout:hover {
+  background: #bb2d3b;
 }
 
 .orders-content {
@@ -80,44 +90,90 @@
   color: #6b6b6b;
 }
 
-.empty-state {
-  min-height: 420px;
-  border: 1px dashed #d7e5c4;
-  border-radius: 18px;
-  background: linear-gradient(180deg, #f8fbf2 0%, #ffffff 100%);
+.orders-list {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 2rem;
+  gap: 1rem;
 }
 
-.empty-icon {
-  width: 88px;
-  height: 88px;
-  border-radius: 50%;
-  background: #e8f6cf;
-  color: #4d8d00;
+.order-card {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  margin-bottom: 1rem;
+  background: #f8fbf2;
+  border: 1px solid #d7e5c4;
+  border-radius: 16px;
+  padding: 1.25rem;
+  transition: 0.3s;
 }
 
-.empty-state h3 {
-  margin: 0 0 0.5rem;
-  color: #2d2d2d;
+.order-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
 }
 
-.empty-state p {
-  margin: 0;
-  max-width: 520px;
-  color: #6b6b6b;
+.order-info h3 {
+  margin: 0 0 0.75rem;
+  color: #2c7a09;
+}
+
+.order-info p {
+  margin: 0.35rem 0;
+  color: #555;
+}
+
+.order-info strong {
+  color: #2c7a09;
+}
+
+.expire-text {
+  color: #d97706;
+  font-weight: 700;
+}
+
+.order-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.btn-success {
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.btn-success:hover {
+  background: #218838;
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+}
+
+.btn-success:disabled,
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 @media (max-width: 768px) {
+
   .main-header {
     flex-direction: column;
     gap: 0.75rem;
@@ -126,5 +182,20 @@
 
   .orders-content {
     padding: 1rem;
+  }
+
+  .order-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .order-actions {
+    width: 100%;
+  }
+
+  .btn-success,
+  .btn-danger {
+    flex: 1;
   }
 }

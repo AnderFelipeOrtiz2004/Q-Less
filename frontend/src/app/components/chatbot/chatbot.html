@@ -5,9 +5,7 @@
     <nav class="sidebar-nav">
       <a routerLink="/home">Perfil</a>
       <a routerLink="/chatbot" class="active">ChatBot</a>
-      <a routerLink="/productos">Conversaciones</a>
       <a *ngIf="isAdmin" routerLink="/pedidos">Pedidos</a>
-      <a routerLink="/nuevo-producto">Mis proyectos</a>
     </nav>
 
     <button type="button" class="logout-button" (click)="logout()">Salir del ChatBot</button>

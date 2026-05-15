@@ -12,6 +12,7 @@ import { AuthService } from '../../services/auth.js';
   styleUrl: './register.css'
 })
 export class RegisterComponent {
+
   user = {
     name: '',
     email: '',
@@ -19,21 +20,31 @@ export class RegisterComponent {
     password: '',
     password_confirmation: ''
   };
+
   errors: { type: string; message: string }[] = [];
   isLoading = false;
 
-  constructor(private authService: AuthService, private router: Router) {}
+  constructor(
+    private authService: AuthService,
+    private router: Router
+  ) {}
 
-  clearErrors(): void {
+  clearErrors() {
     this.errors = [];
   }
 
-  addError(type: string, message: string): void {
+  addError(type: string, message: string) {
     this.errors.push({ type, message });
   }
 
+  isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
   validateForm(): boolean {
+
     this.clearErrors();
+
     let isValid = true;
 
     if (!this.user.name.trim()) {
@@ -42,75 +53,159 @@ export class RegisterComponent {
     }
 
     if (!this.user.email.trim()) {
+
       this.addError('danger', 'El email es requerido');
+
       isValid = false;
+
     } else if (!this.isValidEmail(this.user.email)) {
-      this.addError('warning', 'Formato de email invalido');
+
+      this.addError('danger', 'Formato de email invalido');
+
       isValid = false;
     }
 
     if (!this.user.telefono.trim()) {
+
       this.addError('danger', 'El telefono es requerido');
+
       isValid = false;
     }
 
-    if (!this.user.password.trim() || this.user.password.length < 8) {
-      this.addError('danger', 'La contrasena debe tener al menos 8 caracteres');
+    const password = this.user.password;
+
+    if (password.length < 8) {
+
+      this.addError(
+        'danger',
+        'La contrasena debe tener minimo 8 caracteres'
+      );
+
       isValid = false;
     }
 
-    if (this.user.password !== this.user.password_confirmation) {
-      this.addError('danger', 'Las contrasenas no coinciden');
+    if (!/[A-Z]/.test(password)) {
+
+      this.addError(
+        'danger',
+        'La contrasena debe incluir al menos una mayuscula'
+      );
+
+      isValid = false;
+    }
+
+    if (!/[a-z]/.test(password)) {
+
+      this.addError(
+        'danger',
+        'La contrasena debe incluir al menos una minuscula'
+      );
+
+      isValid = false;
+    }
+
+    if (!/[0-9]/.test(password)) {
+
+      this.addError(
+        'danger',
+        'La contrasena debe incluir al menos un numero'
+      );
+
+      isValid = false;
+    }
+
+    if (!/[@$!%*?&]/.test(password)) {
+
+      this.addError(
+        'danger',
+        'La contrasena debe incluir al menos un simbolo especial'
+      );
+
+      isValid = false;
+    }
+
+    if (
+      this.user.password !==
+      this.user.password_confirmation
+    ) {
+
+      this.addError(
+        'danger',
+        'Las contrasenas no coinciden'
+      );
+
       isValid = false;
     }
 
     return isValid;
   }
 
-  isValidEmail(email: string): boolean {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  }
-
   registrar(): void {
+
     if (!this.validateForm()) return;
 
     this.isLoading = true;
+
     this.clearErrors();
 
     this.authService.register(this.user).subscribe({
+
       next: (res: any) => {
+
         this.isLoading = false;
-        if (res?.status === true && res?.token) {
-          if (res.user?.name) localStorage.setItem('user_name', res.user.name);
-          if (res.user?.id) localStorage.setItem('user_id', String(res.user.id));
-          if (res.user?.rol) localStorage.setItem('user_role', res.user.rol);
+
+        if (res?.status && res?.token) {
+
+          localStorage.setItem(
+            'user_name',
+            res.user?.name || ''
+          );
+
+          localStorage.setItem(
+            'user_id',
+            String(res.user?.id || '')
+          );
+
+          localStorage.setItem(
+            'user_role',
+            res.user?.rol || ''
+          );
 
           this.authService.saveToken(res.token);
-          this.addError('success', 'Registro exitoso. Redirigiendo...');
+
+          this.addError(
+            'success',
+            'Registro exitoso. Redirigiendo...'
+          );
 
           setTimeout(() => {
+
             this.router.navigate(['/home']);
+
           }, 2000);
+
         } else {
-          this.addError('danger', 'La respuesta del servidor no fue valida.');
+
+          this.addError(
+            'danger',
+            'La respuesta del servidor no fue valida.'
+          );
         }
       },
+
       error: (err: any) => {
+
         this.isLoading = false;
-        if (err?.status === 422) {
-          const serverErrors = err.error.errors;
-          if (serverErrors?.email) {
-            this.addError('danger', 'Este email ya esta registrado.');
-          } else if (serverErrors?.telefono) {
-            this.addError('danger', 'El telefono es obligatorio.');
-          } else if (serverErrors?.password) {
-            this.addError('danger', 'La contrasena no cumple con los requisitos.');
-          } else {
-            this.addError('danger', 'Error de validacion en los datos.');
-          }
-        } else {
-          this.addError('danger', 'Error de conexion con el servidor.');
-        }
+
+        const serverErrors = err?.error?.errors;
+
+        this.addError(
+          'danger',
+          serverErrors?.email?.[0]
+          || serverErrors?.telefono?.[0]
+          || serverErrors?.password?.[0]
+          || 'Error de conexion con el servidor.'
+        );
       }
     });
   }

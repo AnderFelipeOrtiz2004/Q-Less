@@ -42,4 +42,11 @@ return [
         'timeout' => env('OPENAI_TIMEOUT', 25),
     ],
 
+    'mercadopago' => [
+        'access_token' => env('MERCADOPAGO_ACCESS_TOKEN'),
+        'currency' => env('MERCADOPAGO_CURRENCY', 'COP'),
+        'frontend_url' => env('FRONTEND_URL', 'http://localhost:4200'),
+        'notification_url' => env('MERCADOPAGO_NOTIFICATION_URL'),
+    ],
+
 ];
