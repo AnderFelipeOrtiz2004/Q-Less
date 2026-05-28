@@ -1,7 +1,7 @@
 # Nombre de proyecto 
 Q-LESS 📚
 
-# Idea de proyecto Q-LESS
+# Idea de proyecto Q-LESS 
 Una pagina web de utiles escolares e insumos para los aprendices e instructores del CBA 
 para el optimo desarrollo de sus actvidades academicas. Lo que se busca es facilitar el 
 acceso a los materiales escolares y de papeleria de una manera optima y eficaz.
@@ -15,12 +15,16 @@ acceso a los materiales escolares y de papeleria de una manera optima y eficaz.
 - Sistema de apartado para productos y comprar mas tarde
 - Pasarela pagos con codigo de confirmacion que es enviado al correo individual
 - IA ChatBOT para consultas sobre materiales y guia de actividades.
+  
+El proyecto Q-less resuelve la necesidad del acceso a los materiales escolares y de papeleria de una manera optima y eficaz,
+mejorando la experiencia tanto para usuarios como para administradores.
 
 
-# Integrantes
+
+# Integrantes 🚻
 - Anderson Felipe Ortiz Garcia
 - Cristian Dario Rojas Ubalteros
-- Daniel ANdres Cubides Herrera
+- Daniel Andres Cubides Herrera
 
 # Prerrequisitos
 - Tener instalado [Node.js](https://nodejs.org/)
