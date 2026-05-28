@@ -1,14 +1,26 @@
 # Nombre de proyecto 
-Q-LESS
+Q-LESS 📚
 
 # Idea de proyecto Q-LESS
 Una pagina web de utiles escolares e insumos para los aprendices e instructores del CBA 
-para el optimo desarrollo de sus actvidades academicas.
+para el optimo desarrollo de sus actvidades academicas. Lo que se busca es facilitar el 
+acceso a los materiales escolares y de papeleria de una manera optima y eficaz.
+
+# La pagina web permite a los usuarios:
+- Registrar y crear cuenta a usuarios nuevos
+- Ver un amplio catalogo de productos dividos por categorias
+- Ver detalle de los productos junto con nombre, descripcion e imagen
+- Buscar productos por categorias
+- Seleccionar productos y ser llevados al carrito de compras
+- Sistema de apartado para productos y comprar mas tarde
+- Pasarela pagos con codigo de confirmacion que es enviado al correo individual
+- IA ChatBOT para consultas sobre materiales y guia de actividades.
+
 
 # Integrantes
 - Anderson Felipe Ortiz Garcia
 - Cristian Dario Rojas Ubalteros
-- Daniel ANdres Cubides Garcia
+- Daniel ANdres Cubides Herrera
 
 # Prerrequisitos
 - Tener instalado [Node.js](https://nodejs.org/)
@@ -28,6 +40,7 @@ para el optimo desarrollo de sus actvidades academicas.
 3. **Copiar la URL:** `En GitHub, ve a la página principal del repositorio y haz clic en el botón verde "Code". Copia la dirección HTTPS o SSH`
 4. **Abrir la Terminal:** `Abre Git Bash, Terminal o CMD y usa cd para ir a la carpeta donde quieras guardar el proyecto.`
 5. **Ejecutar el comando:** `Escribe git clone seguido de la URL copiada y presiona Enter Ejemplo: git clone https://github.com`
+
 
 ## Ejecución local
  **Configurar Backend:**
