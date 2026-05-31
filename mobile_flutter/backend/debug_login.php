@@ -1,0 +1,1 @@
+﻿<?php\nheader("Content-Type: application/json");\n$inputString = file_get_contents("php://input");\n$decoded = json_decode($inputString, true);\n$err = json_last_error();\n$errMsg = json_last_error_msg();\necho json_encode(["raw" => $inputString, "decoded" => $decoded, "error" => $err, "error_msg" => $errMsg]);\n?>

@@ -1,0 +1,11 @@
+export 'home_page.dart';
+export 'products_page.dart';
+export 'documentation_page.dart';
+export 'contact_page.dart';
+export 'profile_page.dart';
+export 'register_page.dart';
+export 'chatbot_page.dart';
+export 'product_detail_page.dart';
+export 'cart_page.dart';
+export 'edit_profile_page.dart';
+export 'my_purchases_page.dart';

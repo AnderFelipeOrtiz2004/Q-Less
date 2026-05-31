@@ -1,0 +1,45 @@
+# Safe CORS configuration for local development (paste into httpd.conf or conf/extra/httpd-xampp.conf)
+# Replace any previous global "Header set Access-Control-Allow-Origin" / "Access-Control-Allow-Credentials" lines.
+<IfModule mod_headers.c>
+    # Only match localhost origins and echo them back (required when using credentials)
+    SetEnvIf Origin "^https?://(localhost|127\.0\.0\.1)(:\d+)?$" ORIGIN_LOCAL=$0
+    Header always set Access-Control-Allow-Origin "%{ORIGIN_LOCAL}e" env=ORIGIN_LOCAL
+    Header always set Access-Control-Allow-Credentials "true" env=ORIGIN_LOCAL
+
+    # Development fallback: allow any origin only when no local origin matched
+    Header always set Access-Control-Allow-Origin "*" env=!ORIGIN_LOCAL
+
+    Header always set Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header always set Vary "Origin"
+</IfModule>
+
+# Fast-response for preflight requests (requires mod_rewrite)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^(.*)$ - [R=200,L]
+</IfModule>
+
+# NOTES:
+# - If you use credentials (cookies/Authorization) DO NOT use a literal '*' as Access-Control-Allow-Origin.
+# - After editing, restart Apache (XAMPP): stop and start Apache or use the XAMPP control panel.
+# - If Apache still doesn't return CORS headers, check for other "Header" directives earlier in the file and remove duplicates.
+# - Ensure modules are enabled: look for 'LoadModule headers_module' and 'LoadModule rewrite_module' in httpd.conf
+
+# Recommended edit workflow (PowerShell as Administrator):
+# 1) Backup original httpd.conf
+#   copy "C:\xampp\apache\conf\httpd.conf" "C:\xampp\apache\conf\httpd.conf.bak"
+# 2) Open httpd.conf in an editor, find and REMOVE any global conflicting CORS lines like:
+#   Header set Access-Control-Allow-Origin "*"
+#   Header set Access-Control-Allow-Credentials "true"
+#   (they conflict when used together)
+# 3) Paste the block above near the end of httpd.conf (after other Include directives or in conf/extra/httpd-xampp.conf)
+# 4) Restart Apache:
+#   net stop Apache2.4
+#   net start Apache2.4
+# 5) Test with curl (replace path if your backend is under /q-less):
+#   curl -i -X OPTIONS "http://localhost/backend/login.php" -H "Origin: http://localhost:63723" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: Content-Type"
+#   curl -i -X POST "http://localhost/backend/login.php" -H "Origin: http://localhost:63723" -H "Content-Type: application/json" -d '{"email":"admin@local","password":"123456"}'
+
+# If you want, I can create a patch for httpd.conf here, but editing system Apache config requires you to confirm and restart Apache locally.
