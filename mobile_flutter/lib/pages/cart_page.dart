@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../models/cart_item.dart';
+import '../services/carrito_service.dart';
 import '../services/order_service.dart';
 import '../services/product_service.dart';
 import '../services/sound_service.dart';
@@ -13,6 +14,7 @@ class CartPage extends StatefulWidget {
   final List<CartItem> cartItems;
   final Function(List<CartItem>) onCartUpdate;
   final VoidCallback onPurchaseComplete;
+  final VoidCallback? onContinueShopping;
 
   const CartPage({
     super.key,
@@ -21,6 +23,7 @@ class CartPage extends StatefulWidget {
     required this.cartItems,
     required this.onCartUpdate,
     required this.onPurchaseComplete,
+    this.onContinueShopping,
   });
 
   @override
@@ -95,16 +98,62 @@ class _CartPageState extends State<CartPage> {
     return _items.fold(0, (sum, item) => sum + item.totalPrice);
   }
 
-  void _removeItem(int index) {
+  Future<void> _removeItem(int index) async {
     final item = _items[index];
+    if (item.reservationId != null) {
+      await CarritoService.eliminarDelCarrito(reservationId: item.reservationId!);
+    }
+    if (!mounted) return;
     setState(() {
       _items.removeAt(index);
     });
     widget.onCartUpdate(_items);
+    widget.onContinueShopping?.call();
+  }
 
-    // release reservation if exists
-    if (item.reservationId != null) {
-      ProductService.releaseReservation(reservationId: item.reservationId!);
+  Future<void> _changeQuantity(int index, int delta) async {
+    final item = _items[index];
+    final newQty = item.quantity + delta;
+
+    if (newQty <= 0) {
+      await _removeItem(index);
+      return;
+    }
+
+    if (item.reservationId == null) return;
+
+    setState(() => _isProcessing = true);
+
+    final response = await CarritoService.actualizarCantidad(
+      reservationId: item.reservationId!,
+      userId: widget.userId,
+      quantity: newQty,
+    );
+
+    if (!mounted) return;
+    setState(() => _isProcessing = false);
+
+    if (response['status'] == 'success') {
+      final data = response['data'] as Map<String, dynamic>? ?? {};
+      setState(() {
+        _items[index] = CartItem(
+          product: item.product,
+          quantity: newQty,
+          reservationId: item.reservationId,
+          reservationExpiresAt:
+              DateTime.tryParse(data['expires_at']?.toString() ?? '') ??
+                  item.reservationExpiresAt,
+        );
+      });
+      widget.onCartUpdate(_items);
+      widget.onContinueShopping?.call();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(response['message']?.toString() ?? 'No se pudo actualizar'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -408,7 +457,10 @@ class _CartPageState extends State<CartPage> {
                         width: double.infinity,
                         height: 56,
                         child: OutlinedButton(
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: () {
+                            widget.onContinueShopping?.call();
+                            Navigator.of(context).pop();
+                          },
                           style: OutlinedButton.styleFrom(
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
@@ -509,11 +561,39 @@ class _CartPageState extends State<CartPage> {
                     ),
                   ),
                 ],
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _isProcessing
+                          ? null
+                          : () => _changeQuantity(index, -1),
+                      icon: const Icon(Icons.remove_circle_outline),
+                      color: _brandGreen,
+                    ),
+                    Text(
+                      '${cartItem.quantity}',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      onPressed: _isProcessing
+                          ? null
+                          : () => _changeQuantity(index, 1),
+                      icon: const Icon(Icons.add_circle_outline),
+                      color: _brandGreen,
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
           IconButton(
-            onPressed: () => _removeItem(index),
+            onPressed: _isProcessing ? null : () => _removeItem(index),
             icon: const Icon(Icons.delete_outline, color: Colors.red),
           ),
         ],

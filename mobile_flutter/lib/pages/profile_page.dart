@@ -100,18 +100,19 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildAvatar() {
     final avatarPath = _user?.avatarPath ?? '';
-    if (avatarPath.isNotEmpty) {
+    final avatarUrl = _user?.avatarUrl ?? '';
+    if (avatarPath.isNotEmpty || avatarUrl.isNotEmpty) {
       return AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
         child: CircleAvatar(
-          key: ValueKey<String>('path-$avatarPath'),
+          key: ValueKey<String>('path-$avatarUrl$avatarPath'),
           radius: 52,
           backgroundColor: const Color(0xFF3EC13B),
           child: ClipOval(
             child: buildProductImage(
               avatarPath,
-              avatarPath,
+              avatarUrl.isNotEmpty ? avatarUrl : avatarPath,
               fit: BoxFit.cover,
               width: 104,
               height: 104,
@@ -144,21 +145,10 @@ class _ProfilePageState extends State<ProfilePage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF3EC13B),
         title: const Text('Perfil', style: TextStyle(color: Colors.white)),
-        leading: widget.showLogout
-            ? Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: ClipOval(
-                  child: Image.asset(
-                    'assets/images/logo.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              )
-            : const BackButton(color: Colors.white),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF3EC13B)))

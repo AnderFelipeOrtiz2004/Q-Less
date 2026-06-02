@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,6 +25,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
   static const Color _pageBackground = Color(0xFFF4F6F4);
 
   late final String _chatKey;
+  late final String _sessionsKey;
 
   final TextEditingController _messageController = TextEditingController();
   final List<ChatMessage> _messages = [];
@@ -38,12 +38,14 @@ class _ChatbotPageState extends State<ChatbotPage> {
   void initState() {
     super.initState();
     _chatKey = _buildChatKey(widget.userId, widget.userRole);
-    _currentSession = _createSession('Sesión actual');
-    _loadSavedChatHistory();
+    _sessionsKey = '${_chatKey}_sessions';
+    _currentSession = _createSession();
+    _loadSavedData();
   }
 
   String _buildChatKey(int userId, String userRole) {
-    final normalizedRole = userRole.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_');
+    final normalizedRole =
+        userRole.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_');
     return 'chat_history_${userId}_$normalizedRole';
   }
 
@@ -53,11 +55,35 @@ class _ChatbotPageState extends State<ChatbotPage> {
     super.dispose();
   }
 
+  String _deriveSessionTitle(String text) {
+    final cleaned = text.trim();
+    if (cleaned.isEmpty) return 'Conversación nueva';
+
+    const maxLen = 48;
+    if (cleaned.length <= maxLen) return cleaned;
+
+    return '${cleaned.substring(0, maxLen).trim()}…';
+  }
+
+  bool _isGenericSessionTitle(String title) {
+    final value = title.trim().toLowerCase();
+    return value == 'sesión actual' ||
+        value == 'sesión cargada' ||
+        value == 'conversación nueva' ||
+        value.startsWith('sesión ');
+  }
+
+  void _applyTitleFromUserMessage(String text) {
+    if (!_isGenericSessionTitle(_currentSession.title)) return;
+    _currentSession.title = _deriveSessionTitle(text);
+  }
+
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
     SoundService.playClick();
+    _applyTitleFromUserMessage(text);
     final userEntry = {'role': 'user', 'content': text};
 
     setState(() {
@@ -68,10 +94,14 @@ class _ChatbotPageState extends State<ChatbotPage> {
       _isLoading = true;
       _messageController.clear();
     });
-    await _persistChatHistory();
+    await _persistAll();
 
     try {
-      final response = await ChatbotService.instance.sendMessage(text, _chatHistory);
+      final response = await ChatbotService.instance.sendMessage(
+        text,
+        _chatHistory,
+        userId: widget.userId,
+      );
       if (mounted) {
         final segments = _splitBotResponse(response);
         final botMessages = segments.asMap().entries.map((entry) {
@@ -91,12 +121,11 @@ class _ChatbotPageState extends State<ChatbotPage> {
           _chatHistory.add(botEntry);
           _currentSession.messages.addAll(botMessages);
           _currentSession.history.add(botEntry);
-          if (!_savedSessions.contains(_currentSession)) {
-            _savedSessions.insert(0, _currentSession);
-          }
+          _currentSession.updatedAt = DateTime.now();
+          _upsertCurrentSession();
           _isLoading = false;
         });
-        _persistChatHistory();
+        await _persistAll();
       }
     } catch (e) {
       if (mounted) {
@@ -107,7 +136,20 @@ class _ChatbotPageState extends State<ChatbotPage> {
           ));
           _isLoading = false;
         });
+        await _persistAll();
       }
+    }
+  }
+
+  void _upsertCurrentSession() {
+    if (_currentSession.messages.isEmpty) return;
+
+    final index =
+        _savedSessions.indexWhere((session) => session.id == _currentSession.id);
+    if (index >= 0) {
+      _savedSessions[index] = _currentSession;
+    } else {
+      _savedSessions.insert(0, _currentSession);
     }
   }
 
@@ -146,10 +188,13 @@ class _ChatbotPageState extends State<ChatbotPage> {
         : Colors.white;
   }
 
-  ChatSession _createSession(String title) {
+  ChatSession _createSession({String? title}) {
+    final now = DateTime.now();
     return ChatSession(
-      title: title,
-      createdAt: DateTime.now(),
+      id: now.microsecondsSinceEpoch.toString(),
+      title: title ?? 'Conversación nueva',
+      createdAt: now,
+      updatedAt: now,
       messages: [],
       history: [],
     );
@@ -165,12 +210,16 @@ class _ChatbotPageState extends State<ChatbotPage> {
   }
 
   void _showChatHistory() {
+    _upsertCurrentSession();
     showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
+        final sessions = List<ChatSession>.from(_savedSessions)
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -207,11 +256,11 @@ class _ChatbotPageState extends State<ChatbotPage> {
                   ],
                 ),
               ),
-              if (_savedSessions.isEmpty)
+              if (sessions.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
-                    'Aún no hay sesiones guardadas. Empieza una conversación para que aparezca aquí.',
+                    'Aún no hay sesiones guardadas. Envía un mensaje para crear una.',
                     style: TextStyle(color: Colors.grey[600]),
                     textAlign: TextAlign.center,
                   ),
@@ -220,13 +269,23 @@ class _ChatbotPageState extends State<ChatbotPage> {
                 Flexible(
                   child: ListView.builder(
                     shrinkWrap: true,
-                    itemCount: _savedSessions.length,
+                    itemCount: sessions.length,
                     itemBuilder: (context, index) {
-                      final session = _savedSessions[index];
+                      final session = sessions[index];
+                      final isCurrent = session.id == _currentSession.id;
                       return ListTile(
-                        leading: const Icon(Icons.chat_bubble_outline),
-                        title: Text(session.title),
-                        subtitle: Text(_formatSessionDate(session.createdAt)),
+                        leading: Icon(
+                          isCurrent
+                              ? Icons.chat_bubble
+                              : Icons.chat_bubble_outline,
+                          color: isCurrent ? _brandGreen : null,
+                        ),
+                        title: Text(
+                          session.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(_formatSessionDate(session.updatedAt)),
                         onTap: () => _loadChatSession(session),
                       );
                     },
@@ -251,21 +310,72 @@ class _ChatbotPageState extends State<ChatbotPage> {
         ..clear()
         ..addAll(session.history);
     });
-    _persistChatHistory();
+    _persistAll();
   }
 
-  void _createNewSession() {
-    final newSession = _createSession('Sesión ${_formatSessionDate(DateTime.now())}');
+  Future<void> _createNewSession() async {
+    _upsertCurrentSession();
+    final newSession = _createSession();
     setState(() {
       _currentSession = newSession;
       _messages.clear();
       _chatHistory.clear();
     });
-    _clearSavedChatHistory();
+    await _persistAll();
   }
 
-  Future<void> _loadSavedChatHistory() async {
+  Future<void> _loadSavedData() async {
     final prefs = await SharedPreferences.getInstance();
+    final sessionsJson = prefs.getString(_sessionsKey);
+    final currentId = prefs.getString('${_chatKey}_current_id');
+
+    if (sessionsJson != null && sessionsJson.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(sessionsJson) as List<dynamic>;
+        final sessions = decoded
+            .whereType<Map<String, dynamic>>()
+            .map(ChatSession.fromJson)
+            .where((session) => session.messages.isNotEmpty)
+            .toList();
+
+        if (sessions.isNotEmpty) {
+          setState(() {
+            _savedSessions
+              ..clear()
+              ..addAll(sessions);
+          });
+
+          ChatSession? restored;
+          if (currentId != null) {
+            for (final session in sessions) {
+              if (session.id == currentId) {
+                restored = session;
+                break;
+              }
+            }
+          }
+          restored ??= sessions.first;
+
+          setState(() {
+            _currentSession = restored!;
+            _messages
+              ..clear()
+              ..addAll(restored.messages);
+            _chatHistory
+              ..clear()
+              ..addAll(restored.history);
+          });
+          return;
+        }
+      } catch (_) {
+        // Continuar con formato antiguo.
+      }
+    }
+
+    await _loadLegacyMessages(prefs);
+  }
+
+  Future<void> _loadLegacyMessages(SharedPreferences prefs) async {
     final savedJson = prefs.getString(_chatKey);
     if (savedJson == null || savedJson.isEmpty) return;
 
@@ -282,19 +392,32 @@ class _ChatbotPageState extends State<ChatbotPage> {
 
       if (restoredMessages.isEmpty) return;
 
+      final firstUser = restoredMessages.firstWhere(
+        (message) => message.isUser,
+        orElse: () => restoredMessages.first,
+      );
+
+      final session = _createSession(
+        title: firstUser.isUser
+            ? _deriveSessionTitle(firstUser.text)
+            : 'Conversación guardada',
+      );
+      session.messages.addAll(restoredMessages);
+      session.history.addAll(_buildChatHistoryFromMessages(restoredMessages));
+
       setState(() {
+        _currentSession = session;
         _messages
           ..clear()
           ..addAll(restoredMessages);
         _chatHistory
           ..clear()
-          ..addAll(_buildChatHistoryFromMessages(restoredMessages));
-        _currentSession = _createSession('Sesión cargada');
-        _currentSession.messages.addAll(restoredMessages);
-        _currentSession.history.addAll(_chatHistory);
+          ..addAll(session.history);
+        _savedSessions.insert(0, session);
       });
+      await _persistAll();
     } catch (_) {
-      // No restaurar si hay problema con la persistencia.
+      // Ignorar datos corruptos.
     }
   }
 
@@ -312,20 +435,29 @@ class _ChatbotPageState extends State<ChatbotPage> {
     return history;
   }
 
-  Future<void> _persistChatHistory() async {
+  Future<void> _persistAll() async {
     final prefs = await SharedPreferences.getInstance();
+    _upsertCurrentSession();
+
+    final sessionsPayload = _savedSessions
+        .where((session) => session.messages.isNotEmpty)
+        .map((session) => session.toJson())
+        .toList();
+
+    await prefs.setString(_sessionsKey, jsonEncode(sessionsPayload));
+    await prefs.setString('${_chatKey}_current_id', _currentSession.id);
+
     final encoded = jsonEncode(_messages
         .map((message) => {
               'text': message.text,
               'isUser': message.isUser,
+              if (message.backgroundColor != null)
+                'backgroundColor': message.backgroundColor!.toARGB32(),
+              if (message.textColor != null)
+                'textColor': message.textColor!.toARGB32(),
             })
         .toList());
     await prefs.setString(_chatKey, encoded);
-  }
-
-  Future<void> _clearSavedChatHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_chatKey);
   }
 
   @override
@@ -460,16 +592,52 @@ class _ChatbotPageState extends State<ChatbotPage> {
 
 class ChatSession {
   ChatSession({
+    required this.id,
     required this.title,
     required this.createdAt,
+    required this.updatedAt,
     required this.messages,
     required this.history,
   });
 
-  final String title;
+  final String id;
+  String title;
   final DateTime createdAt;
+  DateTime updatedAt;
   final List<ChatMessage> messages;
   final List<Map<String, String>> history;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'messages': messages.map((message) => message.toJson()).toList(),
+        'history': history,
+      };
+
+  factory ChatSession.fromJson(Map<String, dynamic> json) {
+    final rawMessages = json['messages'] as List<dynamic>? ?? [];
+    return ChatSession(
+      id: json['id']?.toString() ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      title: json['title']?.toString() ?? 'Conversación',
+      createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+          DateTime.now(),
+      updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ??
+          DateTime.now(),
+      messages: rawMessages
+          .whereType<Map<String, dynamic>>()
+          .map(ChatMessage.fromJson)
+          .toList(),
+      history: (json['history'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map((entry) => {
+                'role': entry['role']?.toString() ?? 'user',
+                'content': entry['content']?.toString() ?? '',
+              })
+          .toList(),
+    );
+  }
 }
 
 class TypingIndicator extends StatefulWidget {
@@ -492,11 +660,6 @@ class _TypingIndicatorState extends State<TypingIndicator>
   void dispose() {
     _controller.dispose();
     super.dispose();
-  }
-
-  double _dotOffset(int index, double progress) {
-    final phase = (progress + index * 0.22) % 1.0;
-    return sin(phase * 2 * pi) * 4.5;
   }
 
   @override
@@ -525,13 +688,6 @@ class _TypingIndicatorState extends State<TypingIndicator>
             decoration: BoxDecoration(
               color: const Color(0xFF3EC13B),
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
             ),
             child: const Icon(Icons.smart_toy, color: Colors.white, size: 20),
           ),
@@ -542,54 +698,14 @@ class _TypingIndicatorState extends State<TypingIndicator>
               decoration: BoxDecoration(
                 color: const Color(0xFFF2F6F2),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.03),
-                    blurRadius: 8,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedBuilder(
-                    animation: _controller,
-                    builder: (context, child) {
-                      final progress = _controller.value;
-                      return Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(3, (index) {
-                          return Padding(
-                            padding: EdgeInsets.only(right: index < 2 ? 8 : 0),
-                            child: Transform.translate(
-                              offset: Offset(0, _dotOffset(index, progress)),
-                              child: Container(
-                                width: 10,
-                                height: 10,
-                                decoration: BoxDecoration(
-                                  color: Colors.green[700]?.withValues(alpha: 0.75),
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Asistente está escribiendo...',
-                      style: TextStyle(
-                        color: Colors.grey[800],
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+              child: const Text(
+                'Asistente está escribiendo...',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
@@ -613,78 +729,98 @@ class ChatMessage extends StatelessWidget {
     this.textColor,
   });
 
+  Map<String, dynamic> toJson() => {
+        'text': text,
+        'isUser': isUser,
+        if (backgroundColor != null) 'backgroundColor': backgroundColor!.toARGB32(),
+        if (textColor != null) 'textColor': textColor!.toARGB32(),
+      };
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json) {
+    return ChatMessage(
+      text: json['text']?.toString() ?? '',
+      isUser: json['isUser'] == true,
+      backgroundColor: json['backgroundColor'] is int
+          ? Color(json['backgroundColor'] as int)
+          : null,
+      textColor:
+          json['textColor'] is int ? Color(json['textColor'] as int) : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FadeSlideEntry(
       child: Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!isUser) ...[
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: const Color(0xFF3EC13B),
-                borderRadius: BorderRadius.circular(18),
+          mainAxisAlignment:
+              isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!isUser) ...[
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3EC13B),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.smart_toy,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
-              child: const Icon(
-                Icons.smart_toy,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 12,
-              ),
-              decoration: BoxDecoration(
-                color: backgroundColor ??
-                    (isUser ? const Color(0xFF3EC13B) : Colors.white),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 5,
-                    offset: const Offset(0, 2),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: backgroundColor ??
+                      (isUser ? const Color(0xFF3EC13B) : Colors.white),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: textColor ??
+                        (isUser ? Colors.white : Colors.black87),
+                    fontSize: 15,
                   ),
-                ],
-              ),
-              child: Text(
-                text,
-                style: TextStyle(
-                  color: textColor ??
-                      (isUser ? Colors.white : Colors.black87),
-                  fontSize: 15,
                 ),
               ),
             ),
-          ),
-          if (isUser) ...[
-            const SizedBox(width: 8),
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(18),
+            if (isUser) ...[
+              const SizedBox(width: 8),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(
+                  Icons.person,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
-              child: const Icon(
-                Icons.person,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
+            ],
           ],
-        ],
+        ),
       ),
-    ),
-  );
+    );
   }
 }

@@ -2,18 +2,35 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/constants.dart';
 import '../models/index.dart';
 
 class AuthService {
   /// Base URL configurada para acceder al backend en XAMPP
+  static const String _defaultBaseUrl = BASE_URL;
+
   static String get baseUrl {
-    // Intentamos cargar desde .env, si no, usamos la IP local 127.0.0.1
     final configuredUrl = dotenv.env['API_BASE_URL']?.trim();
-    if (configuredUrl != null && configuredUrl.isNotEmpty) {
-      return configuredUrl.endsWith('/') ? configuredUrl.substring(0, configuredUrl.length - 1) : configuredUrl;
+    if (configuredUrl == null || configuredUrl.isEmpty) {
+      return _defaultBaseUrl;
     }
-    // 127.0.0.1 es más estable en navegadores que 'localhost'
-    return 'http://127.0.0.1/backend';
+    var url = configuredUrl.replaceAll(RegExp(r'/backend/?$'), '');
+    if (url.endsWith('/backend')) {
+      url = url.substring(0, url.length - '/backend'.length);
+    }
+    url = url.replaceAll('/backend/', '/');
+    return url.endsWith('/') ? url : '$url/';
+  }
+
+  static String _connectionErrorMessage(Object error) {
+    final text = error.toString();
+    if (text.contains('TimeoutException') || text.contains('Connection timed out')) {
+      return 'No se pudo conectar al servidor (XAMPP). Abre el panel de XAMPP e inicia Apache y MySQL.';
+    }
+    if (text.contains('Connection refused') || text.contains('Failed host lookup')) {
+      return 'No hay conexión con el backend. Usa la URL http://127.0.0.1/q-less/ y activa Apache.';
+    }
+    return 'Error de conexión: $text';
   }
 
   static String _cleanResponseBody(String body) {
@@ -34,7 +51,7 @@ class AuthService {
     String role = 'aprendiz',
   }) async {
     try {
-      final url = Uri.parse('$baseUrl/register.php');
+      final url = Uri.parse(apiUrl(baseUrl, 'register.php'));
       
       final response = await http.post(
         url,
@@ -48,7 +65,12 @@ class AuthService {
           'password': password,
           'role': ['aprendiz', 'instructor'].contains(role.toLowerCase()) ? role.toLowerCase() : 'aprendiz',
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(
+        apiTimeout,
+        onTimeout: () => throw Exception(
+          'El servidor no respondió. Verifica que Apache y MySQL estén activos en XAMPP.',
+        ),
+      );
 
       final jsonResponse = jsonDecode(_cleanResponseBody(response.body));
 
@@ -58,7 +80,11 @@ class AuthService {
         'data': jsonResponse['data'],
       };
     } catch (e) {
-      return {'success': false, 'message': 'Error de conexión: ${e.toString()}', 'data': null};
+      return {
+        'success': false,
+        'message': _connectionErrorMessage(e),
+        'data': null,
+      };
     }
   }
 
@@ -67,7 +93,7 @@ class AuthService {
     required String password,
   }) async {
     try {
-      final url = Uri.parse('$baseUrl/login.php');
+      final url = Uri.parse(apiUrl(baseUrl, 'login.php'));
 
       final response = await http.post(
         url,
@@ -79,7 +105,12 @@ class AuthService {
           'correo': correo.trim(),
           'password': password,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(
+        apiTimeout,
+        onTimeout: () => throw Exception(
+          'El servidor no respondió. Verifica que Apache y MySQL estén activos en XAMPP.',
+        ),
+      );
 
       final jsonResponse = jsonDecode(_cleanResponseBody(response.body));
 
@@ -97,7 +128,11 @@ class AuthService {
         };
       }
     } catch (e) {
-      return {'success': false, 'message': 'Error: ${e.toString()}', 'user': null};
+      return {
+        'success': false,
+        'message': _connectionErrorMessage(e),
+        'user': null,
+      };
     }
   }
 }

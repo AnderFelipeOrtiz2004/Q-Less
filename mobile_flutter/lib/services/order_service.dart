@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/constants.dart';
 import '../models/order.dart';
 
 class OrderService {
-  // Ruta absoluta directa sin depender de terceros
-  static const String _endpoint = 'http://localhost/backend/orders.php';
+  static const String baseUrl = BASE_URL;
+  static String get _endpoint => apiUrl(baseUrl, 'orders.php');
 
   /// Create a new order (purchase)
   static Future<Map<String, dynamic>> createOrder({
@@ -39,7 +40,7 @@ class OrderService {
             body: jsonEncode(body),
           )
           .timeout(
-            const Duration(seconds: 10),
+            apiTimeout,
             onTimeout: () => throw Exception('Connection timeout'),
           );
 
@@ -64,7 +65,7 @@ class OrderService {
           'Accept': 'application/json',
         },
       ).timeout(
-        const Duration(seconds: 10),
+        apiTimeout,
         onTimeout: () => throw Exception('Connection timeout'),
       );
 
@@ -98,7 +99,7 @@ class OrderService {
           'Accept': 'application/json',
         },
       ).timeout(
-        const Duration(seconds: 10),
+        apiTimeout,
         onTimeout: () => throw Exception('Connection timeout'),
       );
 

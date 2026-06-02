@@ -4,7 +4,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/cart_item.dart';
 import '../models/product.dart';
+import '../services/carrito_service.dart';
 import '../services/product_service.dart';
+import '../services/user_service.dart';
 import '../services/sound_service.dart';
 import '../utils/image_utils.dart';
 import '../utils/transition_utils.dart';
@@ -40,6 +42,7 @@ class _HomePageState extends State<HomePage> {
   List<Product> products = [];
   List<Product> _bannerProducts = [];
   List<CartItem> _cartItems = [];
+  String _displayName = 'Usuario';
   Timer? _bannerTimer;
   Timer? _stockRefreshTimer;
   final PageController _bannerController = PageController();
@@ -56,9 +59,70 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _displayName = widget.userName ?? 'Usuario';
     _loadProducts();
+    _loadCartFromServer();
     _startBannerTimer();
     _startStockRefresh();
+  }
+
+  Future<void> _loadCartFromServer() async {
+    final userId = widget.userId;
+    if (userId == null || userId <= 0) return;
+
+    try {
+      final response = await CarritoService.obtenerCarrito(userId: userId);
+      if (!mounted || response['status'] != 'success') return;
+
+      final list = response['data'] as List<dynamic>? ?? [];
+      final restored = <CartItem>[];
+
+      for (final raw in list) {
+        if (raw is! Map<String, dynamic>) continue;
+        final productId = int.tryParse(raw['product_id']?.toString() ?? '') ?? 0;
+        if (productId <= 0) continue;
+
+        final product = Product(
+          id: productId,
+          nombre: raw['nombre']?.toString() ?? 'Producto',
+          descripcion: raw['descripcion']?.toString() ?? '',
+          categoria: raw['categoria']?.toString() ?? 'General',
+          precio: int.tryParse(raw['precio']?.toString() ?? '') ?? 0,
+          stock: int.tryParse(raw['stock']?.toString() ?? '') ?? 0,
+          availableStock: int.tryParse(raw['stock']?.toString() ?? '') ?? 0,
+          imageUrl: raw['image_url']?.toString() ?? '',
+          imagePath: raw['image_path']?.toString() ?? '',
+        );
+
+        restored.add(
+          CartItem(
+            product: product,
+            quantity: int.tryParse(raw['quantity']?.toString() ?? '') ?? 1,
+            reservationId: int.tryParse(raw['reservation_id']?.toString() ?? ''),
+            reservationExpiresAt:
+                DateTime.tryParse(raw['expires_at']?.toString() ?? ''),
+          ),
+        );
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _cartItems = restored;
+      });
+    } catch (_) {
+      // Mantener carrito local si falla la red.
+    }
+  }
+
+  Future<void> _refreshUserDisplayName() async {
+    final userId = widget.userId;
+    if (userId == null || userId <= 0) return;
+    try {
+      final user = await UserService.fetchUser(userId: userId);
+      if (mounted) {
+        setState(() => _displayName = user.nombre);
+      }
+    } catch (_) {}
   }
 
   @override
@@ -269,10 +333,9 @@ class _HomePageState extends State<HomePage> {
             final old = products[pIndex];
             final reservedStock =
                 int.tryParse(resp['data']['available_stock']?.toString() ?? '');
-            final newAvailable =
-                reservedStock ?? max(0, old.availableStock - quantity);
+            final newAvailable = reservedStock ??
+                max(0, old.availableStock - quantity);
             products[pIndex] = old.copyWith(
-              stock: newAvailable,
               availableStock: newAvailable,
             );
           }
@@ -342,7 +405,7 @@ class _HomePageState extends State<HomePage> {
       fadeSlideRoute(
         CartPage(
           userId: widget.userId ?? 1,
-          userName: widget.userName ?? 'Usuario',
+          userName: _displayName,
           cartItems: _cartItems,
           onCartUpdate: (items) {
             setState(() {
@@ -350,6 +413,7 @@ class _HomePageState extends State<HomePage> {
             });
             _loadProducts();
           },
+          onContinueShopping: _loadProducts,
           onPurchaseComplete: () {
             // Recargar productos después de compra
             _loadProducts();
@@ -358,7 +422,7 @@ class _HomePageState extends State<HomePage> {
               fadeSlideRoute(
                 MyPurchasesPage(
                   userId: widget.userId ?? 1,
-                  userName: widget.userName ?? 'Usuario',
+                  userName: _displayName,
                 ),
               ),
             );
@@ -539,14 +603,17 @@ class _HomePageState extends State<HomePage> {
           _buildHeaderButton(
             icon: Icons.person_outline,
             tooltip: 'Perfil',
-            onTap: () => _navigateTo(
-              ProfilePage(
-                userId: widget.userId,
-                userName: widget.userName,
-                userRole: widget.userRole,
-                showLogout: true,
-              ),
-            ),
+            onTap: () async {
+              await _navigateTo(
+                ProfilePage(
+                  userId: widget.userId,
+                  userName: _displayName,
+                  userRole: widget.userRole,
+                  showLogout: true,
+                ),
+              );
+              await _refreshUserDisplayName();
+            },
           ),
           const SizedBox(width: 7),
           _buildHeaderButton(
@@ -1007,7 +1074,7 @@ class _HomePageState extends State<HomePage> {
             Row(
               children: [
                 Text(
-                  'Stock: ${product.availableStock}',
+                  'Disponible: ${product.availableStock}',
                   style: const TextStyle(color: Colors.black45, fontSize: 12),
                 ),
                 const Spacer(),

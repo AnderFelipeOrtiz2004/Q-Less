@@ -6,6 +6,7 @@ class User {
   final String role;
   final String? password;
   final String? avatarPath;
+  final String? avatarUrl;
   final String? description;
   final DateTime? createdAt;
 
@@ -16,6 +17,7 @@ class User {
     this.role = 'aprendiz',
     this.password,
     this.avatarPath,
+    this.avatarUrl,
     this.description,
     this.createdAt,
   });
@@ -37,11 +39,12 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: (json['id'] ?? '').toString(),
-      nombre: (json['nombre'] ?? '').toString(),
-      correo: (json['correo'] ?? '').toString(),
+      nombre: (json['nombre'] ?? json['name'] ?? '').toString(),
+      correo: (json['correo'] ?? json['email'] ?? '').toString(),
       role: (json['role'] ?? json['rol'] ?? 'aprendiz').toString(),
       password: json['password']?.toString(),
       avatarPath: json['avatar_path']?.toString(),
+      avatarUrl: json['avatar_url']?.toString(),
       description: json['description']?.toString(),
       createdAt: json['created_at'] != null && (json['created_at'] ?? '') != ''
           ? DateTime.tryParse(json['created_at'].toString())

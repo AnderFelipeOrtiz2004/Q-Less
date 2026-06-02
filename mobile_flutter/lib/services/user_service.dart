@@ -1,17 +1,18 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/constants.dart';
 import '../models/index.dart';
 
 class UserService {
-  // Apuntamos directamente a la ruta absoluta real de tu XAMPP
-  static const String _endpoint = 'http://localhost/backend/users.php';
+  static const String baseUrl = BASE_URL;
+  static String get _endpoint => apiUrl(baseUrl, 'users.php');
 
   static Future<User> fetchUser({required int userId}) async {
     final uri = Uri.parse('$_endpoint?id=$userId');
     final response = await http.get(uri, headers: const {
       'Accept': 'application/json',
     }).timeout(
-      const Duration(seconds: 10),
+      apiTimeout,
       onTimeout: () => throw Exception('Connection timeout'),
     );
 
@@ -40,9 +41,9 @@ class UserService {
       if (description != null) 'description': description,
       if (password != null && password.isNotEmpty) 'password': password,
       if (avatarBase64 != null && avatarBase64.isNotEmpty)
-        'image_base64': avatarBase64,
+        'avatar_base64': avatarBase64,
       if (avatarFileName != null && avatarFileName.isNotEmpty)
-        'image_file_name': avatarFileName,
+        'avatar_file_name': avatarFileName,
     };
 
     final response = await http
@@ -53,7 +54,7 @@ class UserService {
             },
             body: jsonEncode(body))
         .timeout(
-          const Duration(seconds: 10),
+          apiUploadTimeout,
           onTimeout: () => throw Exception('Connection timeout'),
         );
 

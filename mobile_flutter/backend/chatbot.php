@@ -1,21 +1,18 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-header("Content-Type: application/json; charset=utf-8");
+require_once __DIR__ . '/cors.php';
+header('Content-Type: application/json; charset=utf-8');
+
+require_once 'config.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
-    exit;
+    exit();
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Método no permitido. Use POST.',
-    ]);
-    exit;
+    echo json_encode(['status' => 'error', 'message' => 'Método no permitido. Use POST.']);
+    exit();
 }
 
 $body = file_get_contents('php://input');
@@ -24,36 +21,74 @@ $data = json_decode($body, true);
 if (!is_array($data) || !isset($data['history']) || !is_array($data['history'])) {
     http_response_code(400);
     echo json_encode([
-        'success' => false,
+        'status' => 'error',
         'message' => 'Payload inválido. Se espera {"history": [{"role":"user","content":"..."}, ...]}.',
     ]);
-    exit;
+    exit();
 }
 
-$apiKey = getenv('GEMINI_API_KEY') ?: '';
-if (empty($apiKey)) {
+$userId = isset($data['user_id']) ? intval($data['user_id']) : null;
+
+$conn->query(
+    "CREATE TABLE IF NOT EXISTS chatbot_historial (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        user_id INT NULL,
+        pregunta TEXT NOT NULL,
+        categoria VARCHAR(100) NULL,
+        fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_user_id (user_id),
+        INDEX idx_categoria (categoria),
+        INDEX idx_fecha (fecha)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
+$question = '';
+foreach ($data['history'] as $entry) {
+    if (!is_array($entry) || !isset($entry['role'], $entry['content'])) {
+        continue;
+    }
+    if (strtolower(trim((string) $entry['role'])) === 'user') {
+        $question = trim((string) $entry['content']);
+    }
+}
+
+$category = isset($data['categoria']) && trim((string) $data['categoria']) !== ''
+    ? trim((string) $data['categoria'])
+    : extract_chatbot_category($question);
+
+if ($question !== '') {
+    $insertStmt = $conn->prepare(
+        'INSERT INTO chatbot_historial (user_id, pregunta, categoria, fecha) VALUES (?, ?, ?, NOW())'
+    );
+    if ($insertStmt) {
+        $userIdParam = $userId ?? 0;
+        $insertStmt->bind_param('iss', $userIdParam, $question, $category);
+        $insertStmt->execute();
+        $insertStmt->close();
+    }
+}
+
+$apiKey = load_local_env('GEMINI_API_KEY');
+if ($apiKey === '') {
     http_response_code(500);
     echo json_encode([
-        'success' => false,
-        'message' => 'La variable de entorno GEMINI_API_KEY no está configurada en el servidor.',
+        'status' => 'error',
+        'message' => 'Configura GEMINI_API_KEY en q-less/.env',
     ]);
-    exit;
+    exit();
 }
 
 $historyText = '';
 foreach ($data['history'] as $entry) {
-    if (!is_array($entry) || !isset($entry['role']) || !isset($entry['content'])) {
+    if (!is_array($entry) || !isset($entry['role'], $entry['content'])) {
         continue;
     }
-    $role = strtoupper(trim($entry['role']));
-    $content = trim($entry['content']);
+    $role = strtoupper(trim((string) $entry['role']));
+    $content = trim((string) $entry['content']);
     $historyText .= "$role: $content\n";
 }
 
 $systemPrompt = "Eres el asistente de Q-LESS para proyectos escolares. Responde en español, claro y accionable."
-    . "\n\nUtiliza el historial de conversación para mantener contexto y evita repetir instrucciones ya dadas.";
-
-$fullPrompt = $systemPrompt
     . "\n\nHistorial de conversación:\n"
     . $historyText
     . "\n\nFormato requerido de respuesta:\n"
@@ -64,66 +99,81 @@ $fullPrompt = $systemPrompt
     . "No uses Markdown con asteriscos, tablas ni encabezados con #.";
 
 $payload = json_encode([
-    'prompt' => [
-        'text' => $fullPrompt,
+    'contents' => [
+        [
+            'parts' => [
+                ['text' => $systemPrompt],
+            ],
+        ],
     ],
-    'temperature' => 0.7,
-    'max_output_tokens' => 800,
+    'generationConfig' => [
+        'temperature' => 0.7,
+        'maxOutputTokens' => 800,
+    ],
 ]);
 
-$ch = curl_init();
-$endpoint = 'https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generateText?key=' . urlencode($apiKey);
+$endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='
+    . urlencode($apiKey);
 
-curl_setopt($ch, CURLOPT_URL, $endpoint);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Content-Type: application/json; charset=utf-8',
+$ch = curl_init($endpoint);
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ['Content-Type: application/json; charset=utf-8'],
+    CURLOPT_POSTFIELDS => $payload,
+    CURLOPT_TIMEOUT => 45,
 ]);
-curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
 $response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $curlError = curl_error($ch);
 curl_close($ch);
 
 if ($response === false || $httpCode !== 200) {
     http_response_code(500);
     echo json_encode([
-        'success' => false,
-        'message' => 'Error en la llamada a la API generativa: ' . ($curlError ?: "HTTP $httpCode"),
+        'status' => 'error',
+        'message' => 'Error en la API de Gemini: ' . ($curlError ?: "HTTP $httpCode"),
     ]);
-    exit;
+    exit();
 }
 
 $responseData = json_decode($response, true);
-if (!is_array($responseData)) {
+$botResponse = $responseData['candidates'][0]['content']['parts'][0]['text'] ?? null;
+
+if (!is_string($botResponse) || trim($botResponse) === '') {
     http_response_code(500);
     echo json_encode([
-        'success' => false,
-        'message' => 'Respuesta inválida del proveedor de IA.',
+        'status' => 'error',
+        'message' => 'No se obtuvo respuesta válida del asistente.',
     ]);
-    exit;
-}
-
-$botResponse = null;
-if (isset($responseData['candidates'][0]['content'])) {
-    $botResponse = $responseData['candidates'][0]['content'];
-} elseif (isset($responseData['output'][0]['content'][0]['text'])) {
-    $botResponse = $responseData['output'][0]['content'][0]['text'];
-}
-
-if (empty($botResponse)) {
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'message' => 'No se obtuvo contenido válido de la API generativa.',
-    ]);
-    exit;
+    exit();
 }
 
 echo json_encode([
-    'success' => true,
-    'bot_response' => trim($botResponse),
+    'status' => 'success',
+    'data' => [
+        'bot_response' => trim($botResponse),
+    ],
 ]);
+
+function extract_chatbot_category($text)
+{
+    $lower = mb_strtolower($text, 'UTF-8');
+    $categories = [
+        'sistema solar' => ['sistema solar', 'planeta', 'planetas', 'luna', 'sol', 'marte', 'venus', 'jupiter', 'júpiter', 'saturno', 'urano', 'neptuno', 'tierra'],
+        'cartón' => ['cartón', 'carton', 'corrugado', 'caja', 'cartulina'],
+        'maqueta' => ['maqueta', 'modelo', 'escala', 'proyecto', 'maquet'],
+        'robot' => ['robot', 'robótica', 'robotica', 'arduino', 'motores', 'sensores'],
+        'papel' => ['papel', 'cartulina', 'origami', 'folleto'],
+        'madera' => ['madera', 'palillo', 'balsa', 'tabla'],
+    ];
+    foreach ($categories as $category => $terms) {
+        foreach ($terms as $term) {
+            if (mb_strpos($lower, $term) !== false) {
+                return $category;
+            }
+        }
+    }
+    return 'general';
+}

@@ -239,45 +239,11 @@ class _ProductsPageState extends State<ProductsPage> {
         }).toList();
 
     if (productosFiltrados.isEmpty) {
-      return ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey[300]!),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: selectedCategory,
-                isExpanded: true,
-                icon: const Icon(Icons.arrow_drop_down),
-                borderRadius: BorderRadius.circular(12),
-                dropdownColor: Colors.white,
-                items: categories
-                    .map((category) => DropdownMenuItem(
-                          value: category,
-                          child: Text(category),
-                        ))
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null) return;
-                  setState(() => selectedCategory = value);
-                },
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          const Center(
-            child: Text(
-              'No hay productos en esta categoría',
-              style: TextStyle(fontSize: 16, color: Colors.black54),
-            ),
-          ),
-        ],
+      return const Center(
+        child: Text(
+          'No hay datos disponibles',
+          style: TextStyle(fontSize: 16, color: Colors.black54),
+        ),
       );
     }
 

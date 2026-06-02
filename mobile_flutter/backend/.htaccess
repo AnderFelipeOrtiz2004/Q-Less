@@ -1,0 +1,26 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /q-less/
+
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^(.*)$ $1 [R=200,L]
+
+    # Archivos de storage inexistentes → image.php (placeholder o búsqueda alternativa)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^storage/(.*)$ image.php?path=storage/$1 [L,QSA]
+
+    # Compatibilidad: imágenes antiguas en /q-less/products/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^products/(.*)$ storage/products/$1 [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Quitar cabeceras CORS previas (p. ej. bloque global de httpd.conf) y enviar una sola vez
+    Header always unset Access-Control-Allow-Origin
+    Header always unset Access-Control-Allow-Methods
+    Header always unset Access-Control-Allow-Headers
+
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Origin, Accept"
+</IfModule>

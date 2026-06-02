@@ -1,21 +1,11 @@
 <?php
-/**
- * User Profile Handler
- *
- * Provides user profile read and update operations.
- */
-
-// CORS headers for Flutter Web
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS, PUT, DELETE");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
+require_once __DIR__ . '/cors.php';
+header('Content-Type: application/json; charset=utf-8');
 
 require_once 'config.php';
+
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 
 function send_json($statusCode, $payload) {
     http_response_code($statusCode);
@@ -23,13 +13,9 @@ function send_json($statusCode, $payload) {
     exit();
 }
 
-function get_input() {
-    $input = json_decode(file_get_contents('php://input'), true);
-    return is_array($input) ? $input : [];
-}
-
-function ensure_users_table($conn) {
-    $create = "CREATE TABLE IF NOT EXISTS users (
+// Asegurar esquema de usuario
+function setup_user_schema($conn) {
+    $conn->query("CREATE TABLE IF NOT EXISTS users (
         id INT PRIMARY KEY AUTO_INCREMENT,
         name VARCHAR(100) NOT NULL,
         email VARCHAR(100) NOT NULL UNIQUE,
@@ -38,175 +24,105 @@ function ensure_users_table($conn) {
         avatar_path VARCHAR(255) NULL,
         description TEXT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_email (email),
-        INDEX idx_role (role)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-
-    if ($conn->query($create) === false) {
-        send_json(500, ['status' => 'error', 'message' => 'No se pudo preparar la tabla users: ' . $conn->error]);
-    }
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 }
+setup_user_schema($conn);
 
-ensure_users_table($conn);
-
-// Ensure optional profile columns exist
-$roleColumn = $conn->query("SHOW COLUMNS FROM users LIKE 'role'");
-if ($roleColumn && $roleColumn->num_rows === 0) {
-    $conn->query("ALTER TABLE users ADD COLUMN role ENUM('aprendiz', 'instructor', 'admin') NOT NULL DEFAULT 'aprendiz' AFTER password");
-}
-$avatarColumn = $conn->query("SHOW COLUMNS FROM users LIKE 'avatar_path'");
-if ($avatarColumn && $avatarColumn->num_rows === 0) {
-    $conn->query("ALTER TABLE users ADD COLUMN avatar_path VARCHAR(255) NULL AFTER email");
-}
-$descriptionColumn = $conn->query("SHOW COLUMNS FROM users LIKE 'description'");
-if ($descriptionColumn && $descriptionColumn->num_rows === 0) {
-    $conn->query("ALTER TABLE users ADD COLUMN description TEXT NULL AFTER avatar_path");
+function format_user_response(array $user): array
+{
+    return [
+        'id' => (int) $user['id'],
+        'nombre' => $user['name'] ?? '',
+        'correo' => $user['email'] ?? '',
+        'role' => $user['role'] ?? 'aprendiz',
+        'avatar_path' => $user['avatar_path'] ?? null,
+        'avatar_url' => resolve_image_url($user['avatar_path'] ?? null),
+        'description' => $user['description'] ?? '',
+        'created_at' => $user['created_at'] ?? null,
+    ];
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
-$input = get_input();
+$json_input = json_decode(file_get_contents('php://input'), true) ?: [];
+$input = array_merge($_REQUEST, $json_input);
 
+// --- GET: OBTENER PERFIL ---
 if ($method === 'GET') {
-    $userId = isset($_GET['id']) ? intval($_GET['id']) : 0;
-    if ($userId <= 0) {
-        send_json(400, ['status' => 'error', 'message' => 'User id required']);
-    }
+    $userId = intval($_GET['id'] ?? 0);
+    if ($userId <= 0) send_json(400, ['status' => 'error', 'message' => 'ID de usuario requerido']);
 
     $stmt = $conn->prepare("SELECT id, name, email, role, avatar_path, description, created_at FROM users WHERE id = ?");
-    if (!$stmt) {
-        send_json(500, ['status' => 'error', 'message' => 'Error al preparar la consulta']);
-    }
     $stmt->bind_param('i', $userId);
     $stmt->execute();
-    $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
+    $user = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
     if (!$user) {
-        send_json(404, ['status' => 'error', 'message' => 'Usuario no encontrado. Inicia sesion de nuevo.']);
+        send_json(404, ['status' => 'error', 'message' => 'Usuario no encontrado']);
     }
 
-    send_json(200, [
-        'status' => 'success',
-        'data' => [
-            'id' => $user['id'],
-            'nombre' => $user['name'],
-            'correo' => $user['email'],
-            'role' => $user['role'] ?? 'aprendiz',
-            'avatar_path' => $user['avatar_path'] ?? '',
-            'description' => $user['description'] ?? '',
-            'created_at' => $user['created_at'] ?? null,
-        ],
-    ]);
+    send_json(200, ['status' => 'success', 'data' => format_user_response($user)]);
 }
 
+// --- PUT: ACTUALIZAR PERFIL ---
 if ($method === 'PUT') {
-    $userId = isset($input['id']) ? intval($input['id']) : 0;
-    if ($userId <= 0) {
-        send_json(400, ['status' => 'error', 'message' => 'User id required']);
-    }
-
-    $name = isset($input['nombre']) ? trim($input['nombre']) : null;
-    $description = isset($input['description']) ? trim($input['description']) : null;
-    $password = isset($input['password']) && trim($input['password']) !== '' ? $input['password'] : null;
-    $avatarBase64 = isset($input['avatar_base64']) ? $input['avatar_base64'] : null;
-    $avatarFileName = isset($input['avatar_file_name']) ? trim($input['avatar_file_name']) : null;
+    $userId = intval($input['id'] ?? 0);
+    if ($userId <= 0) send_json(400, ['status' => 'error', 'message' => 'ID de usuario requerido']);
 
     $fields = [];
     $types = '';
     $values = [];
 
-    if ($name !== null && $name !== '') {
-        $fields[] = 'name = ?';
-        $types .= 's';
-        $values[] = $name;
+    if (!empty($input['nombre'])) {
+        $fields[] = 'name = ?'; $types .= 's'; $values[] = trim($input['nombre']);
     }
-    if ($description !== null) {
-        $fields[] = 'description = ?';
-        $types .= 's';
-        $values[] = $description;
+    if (isset($input['description'])) {
+        $fields[] = 'description = ?'; $types .= 's'; $values[] = trim($input['description']);
     }
-    if ($password !== null) {
-        if (strlen($password) < 6) {
-            send_json(400, ['status' => 'error', 'message' => 'La contraseña debe tener al menos 6 caracteres']);
-        }
-        $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
-        $fields[] = 'password = ?';
-        $types .= 's';
-        $values[] = $hashedPassword;
+    if (!empty($input['password'])) {
+        if (strlen($input['password']) < 6) send_json(400, ['status' => 'error', 'message' => 'Contraseña muy corta']);
+        $fields[] = 'password = ?'; $types .= 's'; $values[] = password_hash($input['password'], PASSWORD_BCRYPT);
     }
 
-    if ($avatarBase64 !== null && $avatarBase64 !== '') {
-        $decoded = base64_decode(preg_replace('#^data:image/[^;]+;base64,#', '', $avatarBase64));
-        if ($decoded === false) {
-            send_json(400, ['status' => 'error', 'message' => 'Imagen inválida']);
-        }
-
+    if (!empty($input['avatar_base64'])) {
         $avatarDir = __DIR__ . '/storage/avatars';
-        if (!is_dir($avatarDir) && !mkdir($avatarDir, 0777, true) && !is_dir($avatarDir)) {
-            send_json(500, ['status' => 'error', 'message' => 'No se pudo crear la carpeta de imagenes']);
-        }
-
-        $extension = pathinfo($avatarFileName ?? 'avatar.png', PATHINFO_EXTENSION);
-        if ($extension === '') {
-            $extension = 'png';
-        }
-        $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($avatarFileName ?? 'avatar.png', PATHINFO_FILENAME));
-        $fileName = sprintf('%s_%s.%s', $userId, time(), $extension);
+        if (!is_dir($avatarDir)) mkdir($avatarDir, 0775, true);
+        $decoded = base64_decode(preg_replace('#^data:image/[^;]+;base64,#', '', $input['avatar_base64']));
+        $fileName = 'avatar_' . $userId . '_' . time() . '.png';
         $filePath = $avatarDir . '/' . $fileName;
-
-        if (file_put_contents($filePath, $decoded) === false) {
-            send_json(500, ['status' => 'error', 'message' => 'No se pudo guardar la imagen']);
+        
+        if (file_put_contents($filePath, $decoded)) {
+            $fields[] = 'avatar_path = ?'; $types .= 's'; $values[] = 'storage/avatars/' . $fileName;
         }
-
-        $avatarPath = 'backend/storage/avatars/' . $fileName;
-        $fields[] = 'avatar_path = ?';
-        $types .= 's';
-        $values[] = $avatarPath;
     }
 
-    if (empty($fields)) {
-        send_json(400, ['status' => 'error', 'message' => 'No hay datos para actualizar']);
-    }
+    if (empty($fields)) send_json(400, ['status' => 'error', 'message' => 'No hay datos para actualizar']);
 
     $sql = 'UPDATE users SET ' . implode(', ', $fields) . ', updated_at = NOW() WHERE id = ?';
-    $types .= 'i';
-    $values[] = $userId;
+    $types .= 'i'; $values[] = $userId;
 
     $stmt = $conn->prepare($sql);
-    if (!$stmt) {
-        send_json(500, ['status' => 'error', 'message' => 'Error al preparar la actualización']);
-    }
-
     $stmt->bind_param($types, ...$values);
-    if (!$stmt->execute()) {
-        send_json(500, ['status' => 'error', 'message' => 'No se pudo actualizar el usuario: ' . $stmt->error]);
+    
+    if ($stmt->execute()) {
+        $stmt->close();
+        $fetch = $conn->prepare('SELECT id, name, email, role, avatar_path, description, created_at FROM users WHERE id = ?');
+        $fetch->bind_param('i', $userId);
+        $fetch->execute();
+        $updated = $fetch->get_result()->fetch_assoc();
+        $fetch->close();
+
+        send_json(200, [
+            'status' => 'success',
+            'message' => 'Perfil actualizado correctamente',
+            'data' => $updated ? format_user_response($updated) : null,
+        ]);
+    } else {
+        $stmt->close();
+        send_json(500, ['status' => 'error', 'message' => 'Error al actualizar en base de datos']);
     }
-
-    $stmt->close();
-
-    // Return updated profile
-    $stmt = $conn->prepare("SELECT id, name, email, role, avatar_path, description, created_at FROM users WHERE id = ?");
-    $stmt->bind_param('i', $userId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $user = $result->fetch_assoc();
-    $stmt->close();
-
-    send_json(200, [
-        'status' => 'success',
-        'message' => 'Perfil actualizado',
-        'data' => [
-            'id' => $user['id'],
-            'nombre' => $user['name'],
-            'correo' => $user['email'],
-            'role' => $user['role'] ?? 'aprendiz',
-            'avatar_path' => $user['avatar_path'] ?? '',
-            'description' => $user['description'] ?? '',
-            'created_at' => $user['created_at'] ?? null,
-        ],
-    ]);
 }
 
 send_json(405, ['status' => 'error', 'message' => 'Método no permitido']);
+?>

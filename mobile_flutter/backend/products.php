@@ -1,13 +1,6 @@
 <?php
-// CORS headers for Flutter Web
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS, PUT, DELETE");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
+require_once __DIR__ . '/cors.php';
+header('Content-Type: application/json; charset=utf-8');
 
 require_once 'config.php';
 
@@ -29,42 +22,19 @@ function is_admin_request($input) {
     return isset($input['role']) && strtolower(trim($input['role'])) === 'admin';
 }
 
-function image_url($path) {
-    // Ensure $path is a non-empty string
-    if (!is_string($path) || trim($path) === '') {
-        return 'https://via.placeholder.com/600x400?text=No-Image';
-    }
-
-    $path = trim($path);
-
-    // If already a full URL, return it (but normalize)
-    if (preg_match('/^https?:\/\//i', $path)) {
-        return $path;
-    }
-
-    // Build a safe host (fallback to localhost if HTTP_HOST missing)
-    $scheme = (isset($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) === 'on') ? 'https' : 'http';
-    $hostName = isset($_SERVER['HTTP_HOST']) && trim($_SERVER['HTTP_HOST']) !== '' ? $_SERVER['HTTP_HOST'] : 'localhost';
-    $hostUrl = $scheme . '://' . $hostName;
-
-    $cleanPath = ltrim($path, '/');
-    if (strpos($cleanPath, 'backend/') !== 0) {
-        $cleanPath = 'backend/' . (strpos($cleanPath, 'storage/') === 0 ? $cleanPath : 'storage/' . $cleanPath);
-    }
-
-    // If for some reason rawurlencode fails, fallback to placeholder
-    $encoded = rawurlencode($cleanPath);
-    if ($encoded === false || $encoded === '') {
-        return 'https://via.placeholder.com/600x400?text=No-Image';
-    }
-
-    return $hostUrl . '/backend/image.php?path=' . $encoded;
-}
-
 function ensure_product_columns($conn) {
-    $result = $conn->query("SHOW COLUMNS FROM productos LIKE 'categoria'");
-    if ($result && $result->num_rows === 0) {
-        $conn->query("ALTER TABLE productos ADD COLUMN categoria VARCHAR(80) NOT NULL DEFAULT 'Cuadernos' AFTER descripcion");
+    $stmt = $conn->prepare("SHOW COLUMNS FROM productos LIKE 'categoria'");
+    if ($stmt) {
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res && $res->num_rows === 0) {
+            $alter = $conn->prepare("ALTER TABLE productos ADD COLUMN categoria VARCHAR(80) NOT NULL DEFAULT 'Cuadernos' AFTER descripcion");
+            if ($alter) {
+                $alter->execute();
+                $alter->close();
+            }
+        }
+        $stmt->close();
     }
 }
 
@@ -81,8 +51,14 @@ function ensure_reservations_table($conn) {
         INDEX idx_product_id (product_id),
         INDEX idx_status_expires (status, expires_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
-
-    if ($conn->query($create) === false) {
+    $stmt = $conn->prepare($create);
+    if ($stmt) {
+        $ok = $stmt->execute();
+        $stmt->close();
+        if (!$ok) {
+            send_json(500, ['status' => 'error', 'message' => 'No se pudo preparar reservas: ' . $conn->error]);
+        }
+    } else {
         send_json(500, ['status' => 'error', 'message' => 'No se pudo preparar reservas: ' . $conn->error]);
     }
 }
@@ -131,7 +107,7 @@ function save_product_image($input) {
         ]);
     }
 
-    return 'backend/storage/products/' . $fileName;
+    return 'storage/products/' . $fileName;
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -139,15 +115,23 @@ ensure_product_columns($conn);
 ensure_reservations_table($conn);
 
 if ($method === 'GET') {
-    $conn->query("UPDATE productos p INNER JOIN (SELECT product_id, SUM(quantity) AS qty FROM reservations WHERE status = 'active' AND expires_at <= NOW() GROUP BY product_id) r ON r.product_id = p.id SET p.stock = p.stock + r.qty, p.updated_at = NOW()");
-    $conn->query("UPDATE reservations SET status = 'expired' WHERE status = 'active' AND expires_at <= NOW()");
+    repair_legacy_reserved_stock($conn);
+    expire_active_reservations($conn);
 
     // Include active reservations per product so we can compute available stock
     $query = "SELECT p.id, p.nombre, p.descripcion, p.categoria, p.precio, p.stock, p.image_path, p.user_id, p.created_at, p.updated_at, COALESCE(SUM(r.quantity),0) AS reserved " .
              "FROM productos p LEFT JOIN reservations r ON r.product_id = p.id AND r.status = 'active' " .
              "GROUP BY p.id ORDER BY p.updated_at DESC, p.id DESC";
 
-    $result = $conn->query($query);
+    $stmt = $conn->prepare($query);
+    if (!$stmt) {
+        send_json(500, [
+            'status' => 'error',
+            'message' => 'Error al preparar consulta: ' . $conn->error
+        ]);
+    }
+    $stmt->execute();
+    $result = $stmt->get_result();
 
     if (!$result) {
         send_json(500, [
@@ -170,7 +154,7 @@ if ($method === 'GET') {
         $reserved = isset($row['reserved']) ? intval($row['reserved']) : 0;
 
         $available = max(0, $stock - $reserved);
-        $image_url = image_url($image_path);
+        $image_url = resolve_image_url($image_path);
 
         $products[] = [
             'id' => $id,

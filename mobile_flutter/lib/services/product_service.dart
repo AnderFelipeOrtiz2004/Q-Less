@@ -3,14 +3,13 @@ import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
+import '../config/constants.dart';
 import '../models/product.dart';
 
 class ProductService {
-  // Ruta limpia directa para la API en local
-  static String get _backendRoot => 'http://localhost/backend';
-  
-  static String get _endpoint => '$_backendRoot/products.php';
-  static String get _reservationsEndpoint => '$_backendRoot/reservations.php';
+  static const String baseUrl = BASE_URL;
+  static String get _endpoint => apiUrl(baseUrl, 'products.php');
+  static String get _reservationsEndpoint => apiUrl(baseUrl, 'reservations.php');
 
   /// Helper method to clean raw string data before JSON decoding
   /// This prevents FormatException caused by accidental leading characters (e.g. spaces, commas, BOM)
@@ -41,7 +40,7 @@ class ProductService {
               'product_id': productId,
               'quantity': quantity,
             }))
-        .timeout(const Duration(seconds: 10), onTimeout: () => throw Exception('Connection timeout'));
+        .timeout(apiTimeout, onTimeout: () => throw Exception('Connection timeout'));
 
     final cleanedBody = _cleanResponseBody(response.body);
     final jsonResponse = jsonDecode(cleanedBody);
@@ -62,7 +61,7 @@ class ProductService {
               'action': 'release',
               'reservation_id': reservationId,
             }))
-        .timeout(const Duration(seconds: 10), onTimeout: () => throw Exception('Connection timeout'));
+        .timeout(apiTimeout, onTimeout: () => throw Exception('Connection timeout'));
 
     final cleanedBody = _cleanResponseBody(response.body);
     final jsonResponse = jsonDecode(cleanedBody);
@@ -83,7 +82,7 @@ class ProductService {
               'action': 'confirm',
               'reservation_id': reservationId,
             }))
-        .timeout(const Duration(seconds: 10), onTimeout: () => throw Exception('Connection timeout'));
+        .timeout(apiTimeout, onTimeout: () => throw Exception('Connection timeout'));
 
     final cleanedBody = _cleanResponseBody(response.body);
     final jsonResponse = jsonDecode(cleanedBody);
@@ -97,7 +96,7 @@ class ProductService {
         'Accept': 'application/json',
       },
     ).timeout(
-      const Duration(seconds: 10),
+      apiTimeout,
       onTimeout: () => throw Exception('Connection timeout'),
     );
 
@@ -167,7 +166,7 @@ class ProductService {
           }),
         )
         .timeout(
-          const Duration(seconds: 10),
+          apiTimeout,
           onTimeout: () => throw Exception('Connection timeout'),
         );
 
@@ -201,11 +200,11 @@ class ProductService {
         ? await http
             .post(uri, headers: headers, body: jsonEncode(body))
             .timeout(
-              const Duration(seconds: 10),
+              apiUploadTimeout,
               onTimeout: () => throw Exception('Connection timeout'),
             )
         : await http.put(uri, headers: headers, body: jsonEncode(body)).timeout(
-              const Duration(seconds: 10),
+              apiUploadTimeout,
               onTimeout: () => throw Exception('Connection timeout'),
             );
 

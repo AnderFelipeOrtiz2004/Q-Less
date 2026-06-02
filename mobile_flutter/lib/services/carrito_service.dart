@@ -1,24 +1,25 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import '../config/constants.dart';
 
 /// ============================================================
 /// SERVICIO: CarritoService
 /// Maneja todas las operaciones HTTP del carrito con el backend
 /// ============================================================
 class CarritoService {
-  // URL corregida para apuntar a la carpeta real de tu backend
-  static const String baseUrl = 'http://localhost/backend';
+  // URL base uniforme para todas las llamadas al backend
+  static const String baseUrl = BASE_URL;
 
   /// Obtiene el carrito actual del usuario desde la base de datos
   static Future<Map<String, dynamic>> obtenerCarrito({required int userId}) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/reservations.php?user_id=$userId'),
+        Uri.parse('${apiUrl(baseUrl, 'reservations.php')}?user_id=$userId&action=list'),
         headers: {
           'Content-Type': 'application/json',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(apiTimeout);
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -39,7 +40,7 @@ class CarritoService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/reservations.php'),
+        Uri.parse(apiUrl(baseUrl, 'reservations.php')),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -49,7 +50,7 @@ class CarritoService {
           'product_id': productoId,
           'quantity': cantidad,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(apiTimeout);
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -68,7 +69,7 @@ class CarritoService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/reservations.php'),
+        Uri.parse(apiUrl(baseUrl, 'reservations.php')),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -76,7 +77,7 @@ class CarritoService {
           'action': 'release',
           'reservation_id': reservationId,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(apiTimeout);
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -89,13 +90,41 @@ class CarritoService {
     }
   }
 
+  /// Actualiza la cantidad de una reserva activa
+  static Future<Map<String, dynamic>> actualizarCantidad({
+    required int reservationId,
+    required int userId,
+    required int quantity,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse(apiUrl(baseUrl, 'reservations.php')),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'action': 'update',
+          'reservation_id': reservationId,
+          'user_id': userId,
+          'quantity': quantity,
+        }),
+      ).timeout(apiTimeout);
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'status': 'error', 'message': 'Error al actualizar cantidad'};
+    } catch (e) {
+      debugPrint('Error en actualizarCantidad: $e');
+      return {'status': 'error', 'message': e.toString()};
+    }
+  }
+
   /// Procesa la compra (convierte reservas en descuentos permanentes)
   static Future<Map<String, dynamic>> procesarCompra({
     required int reservationId,
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/reservations.php'),
+        Uri.parse(apiUrl(baseUrl, 'reservations.php')),
         headers: {
           'Content-Type': 'application/json',
         },
@@ -103,7 +132,7 @@ class CarritoService {
           'action': 'confirm',
           'reservation_id': reservationId,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(apiTimeout);
 
       if (response.statusCode == 200) {
         return json.decode(response.body);

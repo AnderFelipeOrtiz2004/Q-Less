@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:http/http.dart' as http;
 
+import '../config/constants.dart';
 import '../models/product.dart';
 import 'product_service.dart';
 
@@ -33,7 +34,7 @@ class ChatbotService {
     _configurationError = null;
 
     final apiKey = dotenv.env['GEMINI_API_KEY']?.trim();
-    final backendUrl = dotenv.env['CHATBOT_BACKEND_URL']?.trim();
+    final backendUrl = _normalizeBackendUrl(dotenv.env['CHATBOT_BACKEND_URL']?.trim());
 
     if ((apiKey == null || apiKey.isEmpty) &&
         (backendUrl == null || backendUrl.isEmpty)) {
@@ -46,8 +47,21 @@ class ChatbotService {
     _backendUrl = backendUrl;
   }
 
+  String? _normalizeBackendUrl(String? url) {
+    if (url == null || url.isEmpty) return null;
+    final trimmed = url.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return trimmed;
+    }
+    var relative = trimmed.replaceFirst(RegExp(r'^/+'), '');
+    relative = relative.replaceFirst(RegExp(r'^backend/'), '');
+    final base = BASE_URL;
+    return relative.isEmpty ? base : '$base$relative';
+  }
+
   Future<String> sendMessage(
-      String userMessage, List<Map<String, String>> chatHistory) async {
+      String userMessage, List<Map<String, String>> chatHistory,
+      {int? userId}) async {
     final apiKey = _apiKey;
     final backendUrl = _backendUrl;
 
@@ -62,52 +76,68 @@ class ChatbotService {
       return 'El mensaje está vacío o no es válido.';
     }
 
+    final category = _extractChatCategory(sanitizedUserMessage);
+    final prompt = await _buildProjectPrompt(sanitizedUserMessage);
+
+    if (apiKey != null && apiKey.isNotEmpty) {
+      Object? lastError;
+      for (final config in _models) {
+        try {
+          final model = GenerativeModel(
+            model: config.name,
+            apiKey: apiKey,
+            requestOptions: config.apiVersion == null
+                ? null
+                : RequestOptions(apiVersion: config.apiVersion),
+          );
+
+          final response = await _generateWithRetry(model, prompt);
+          final text = response.text;
+          if (text != null && text.trim().isNotEmpty) {
+            return text;
+          }
+        } catch (e) {
+          lastError = e;
+          if (_isModelNotFoundError(e) || _isRetriableError(e)) {
+            continue;
+          }
+          return 'Error al comunicarse con el modelo: ${e.toString()}';
+        }
+      }
+
+      if (backendUrl != null && backendUrl.isNotEmpty) {
+        return _sendHistoryToBackend(
+          backendUrl,
+          _normalizeHistory(chatHistory),
+          userId: userId,
+          category: category,
+        );
+      }
+
+      return 'No se encontro un modelo de Gemini disponible. Ultimo error: ${lastError.toString()}';
+    }
+
     if (backendUrl != null && backendUrl.isNotEmpty) {
       return _sendHistoryToBackend(
         backendUrl,
         _normalizeHistory(chatHistory),
+        userId: userId,
+        category: category,
       );
     }
 
-    final prompt = await _buildProjectPrompt(sanitizedUserMessage);
-    Object? lastError;
-
-    for (final config in _models) {
-      try {
-        final model = GenerativeModel(
-          model: config.name,
-          apiKey: apiKey!,
-          requestOptions: config.apiVersion == null
-              ? null
-              : RequestOptions(apiVersion: config.apiVersion),
-        );
-
-        final response = await _generateWithRetry(model, prompt);
-        final text = response.text;
-        if (text != null && text.trim().isNotEmpty) {
-          return text;
-        }
-
-        return 'No recibi una respuesta clara del asistente.';
-      } catch (e) {
-        lastError = e;
-        if (_isModelNotFoundError(e)) {
-          continue;
-        }
-        if (_isRetriableError(e)) {
-          continue;
-        }
-
-        return 'Error al comunicarse con el modelo: ${e.toString()}';
-      }
-    }
-
-    return 'No se encontro un modelo de Gemini disponible para esta API key. Ultimo error: ${lastError.toString()}';
+    return _configurationError ?? 'Chatbot no configurado.';
   }
 
   Future<String> _sendHistoryToBackend(
-      String backendUrl, List<Map<String, String>> chatHistory) async {
+      String backendUrl, List<Map<String, String>> chatHistory,
+      {int? userId, String? category}) async {
     final normalizedHistory = _normalizeHistory(chatHistory);
+    final body = <String, dynamic>{
+      'history': normalizedHistory,
+      if (userId != null) 'user_id': userId,
+      if (category != null && category.isNotEmpty) 'categoria': category,
+    };
 
     for (var attempt = 1; attempt <= _maxRetryAttempts; attempt++) {
       try {
@@ -115,15 +145,17 @@ class ChatbotService {
             .post(
               Uri.parse(backendUrl),
               headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({'history': normalizedHistory}),
+              body: jsonEncode(body),
             )
             .timeout(const Duration(seconds: 20));
 
         if (response.statusCode == 200) {
           final payload = jsonDecode(response.body);
-          if (payload is Map && payload['success'] == true) {
-            return payload['bot_response']?.toString() ??
-                'No se recibió una respuesta válida del backend.';
+          if (payload is Map && payload['status'] == 'success' && payload['data'] is Map) {
+            final botResponse = payload['data']['bot_response']?.toString();
+            if (botResponse != null && botResponse.isNotEmpty) {
+              return botResponse;
+            }
           }
 
           final serverMessage = payload['message']?.toString();
@@ -281,6 +313,67 @@ No uses Markdown con asteriscos, tablas ni encabezados con #.
     return text.contains('not found for api version') ||
         text.contains('is not found') ||
         text.contains('404');
+  }
+
+  String _extractChatCategory(String question) {
+    final lower = question.toLowerCase();
+    final categories = {
+      'sistema solar': [
+        'sistema solar',
+        'planeta',
+        'planetas',
+        'luna',
+        'sol',
+        'marte',
+        'venus',
+        'jupiter',
+        'saturno',
+        'urano',
+        'neptuno',
+        'tierra',
+      ],
+      'cartón': [
+        'cartón',
+        'carton',
+        'corrugado',
+        'caja',
+        'cartulina',
+      ],
+      'maqueta': [
+        'maqueta',
+        'modelo',
+        'escala',
+        'proyecto',
+        'maquet',
+      ],
+      'robot': [
+        'robot',
+        'robótica',
+        'arduino',
+        'motores',
+        'sensores',
+      ],
+      'papel': [
+        'papel',
+        'cartulina',
+        'origami',
+        'folleto',
+      ],
+      'madera': [
+        'madera',
+        'palillo',
+        'balsa',
+        'tabla',
+      ],
+    };
+    for (final entry in categories.entries) {
+      for (final term in entry.value) {
+        if (lower.contains(term)) {
+          return entry.key;
+        }
+      }
+    }
+    return 'general';
   }
 
   void dispose() {}

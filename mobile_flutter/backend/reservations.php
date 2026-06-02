@@ -1,15 +1,11 @@
 <?php
-// CORS headers for Flutter Web
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS, PUT, DELETE");
-header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
+require_once __DIR__ . '/cors.php';
+header('Content-Type: application/json; charset=UTF-8');
 
 require_once 'config.php';
+
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 
 function send_json($statusCode, $payload) {
     http_response_code($statusCode);
@@ -41,43 +37,55 @@ function ensure_reservations_table($conn) {
     }
 }
 
-function release_expired_reservations($conn) {
-    $conn->begin_transaction();
-    try {
-        $result = $conn->query("SELECT id, product_id, quantity FROM reservations WHERE status = 'active' AND expires_at <= NOW() FOR UPDATE");
-        if (!$result) {
-            throw new Exception('No se pudieron consultar reservas expiradas: ' . $conn->error);
-        }
-
-        while ($row = $result->fetch_assoc()) {
-            $productId = intval($row['product_id']);
-            $quantity = intval($row['quantity']);
-            $updateStock = $conn->prepare("UPDATE productos SET stock = stock + ?, updated_at = NOW() WHERE id = ?");
-            if (!$updateStock) {
-                throw new Exception('No se pudo preparar devolucion de stock: ' . $conn->error);
-            }
-            $updateStock->bind_param("ii", $quantity, $productId);
-            $updateStock->execute();
-            $updateStock->close();
-        }
-
-        $conn->query("UPDATE reservations SET status = 'expired' WHERE status = 'active' AND expires_at <= NOW()");
-        $conn->commit();
-    } catch (Exception $e) {
-        $conn->rollback();
-        send_json(500, ['status' => 'error', 'message' => $e->getMessage()]);
-    }
-}
-
 ensure_reservations_table($conn);
-release_expired_reservations($conn);
+repair_legacy_reserved_stock($conn);
+expire_active_reservations($conn);
 
 $method = $_SERVER['REQUEST_METHOD'];
-$input = get_input();
+// Unión flexible de entradas (Evita fallos si la acción viene por URL o por JSON)
+$json_input = json_decode(file_get_contents('php://input'), true) ?: [];
+$input = array_merge($_REQUEST, $json_input);
 $action = isset($input['action']) ? $input['action'] : '';
 
 if ($method === 'GET') {
-    send_json(200, ['status' => 'success', 'message' => 'reservations endpoint OK']);
+    $userId = intval($input['user_id'] ?? $_GET['user_id'] ?? 0);
+    if ($userId <= 0) {
+        send_json(400, ['status' => 'error', 'message' => 'user_id requerido']);
+    }
+
+    $stmt = $conn->prepare(
+        "SELECT r.id AS reservation_id, r.product_id, r.quantity, r.expires_at, r.reserved_at,
+                p.nombre, p.descripcion, p.categoria, p.precio, p.stock, p.image_path
+         FROM reservations r
+         INNER JOIN productos p ON p.id = r.product_id
+         WHERE r.user_id = ? AND r.status = 'active' AND r.expires_at > NOW()
+         ORDER BY r.reserved_at DESC"
+    );
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $items = [];
+    while ($row = $result->fetch_assoc()) {
+        $imagePath = $row['image_path'] ?? '';
+        $items[] = [
+            'reservation_id' => (int) $row['reservation_id'],
+            'product_id' => (int) $row['product_id'],
+            'quantity' => (int) $row['quantity'],
+            'expires_at' => $row['expires_at'],
+            'reserved_at' => $row['reserved_at'],
+            'nombre' => $row['nombre'],
+            'descripcion' => $row['descripcion'],
+            'categoria' => $row['categoria'],
+            'precio' => (int) $row['precio'],
+            'stock' => (int) $row['stock'],
+            'image_path' => $imagePath,
+            'image_url' => resolve_image_url($imagePath),
+        ];
+    }
+    $stmt->close();
+
+    send_json(200, ['status' => 'success', 'data' => $items]);
 }
 
 if ($method === 'POST' && $action === 'create') {
@@ -91,50 +99,37 @@ if ($method === 'POST' && $action === 'create') {
 
     $conn->begin_transaction();
     try {
-        $productStmt = $conn->prepare("SELECT stock FROM productos WHERE id = ? FOR UPDATE");
-        if (!$productStmt) {
-            throw new Exception('Error al preparar consulta de producto: ' . $conn->error);
-        }
-        $productStmt->bind_param("i", $productId);
-        $productStmt->execute();
-        $product = $productStmt->get_result()->fetch_assoc();
-        $productStmt->close();
-
-        if (!$product) {
+        $availability = get_product_availability($conn, $productId);
+        if ($availability['stock'] <= 0 && $availability['available'] <= 0) {
             $conn->rollback();
             send_json(404, ['status' => 'error', 'message' => 'Producto no encontrado']);
         }
 
-        $stock = intval($product['stock']);
-        if ($stock < $quantity) {
+        if ($availability['available'] < $quantity) {
             $conn->rollback();
-            send_json(409, ['status' => 'error', 'message' => 'Stock insuficiente. Disponibles: ' . $stock]);
+            send_json(409, [
+                'status' => 'error',
+                'message' => 'Stock insuficiente. Disponibles: ' . $availability['available'],
+            ]);
         }
 
-        $stockStmt = $conn->prepare("UPDATE productos SET stock = stock - ?, updated_at = NOW() WHERE id = ? AND stock >= ?");
-        if (!$stockStmt) {
-            throw new Exception('Error al preparar reserva de stock: ' . $conn->error);
-        }
-        $stockStmt->bind_param("iii", $quantity, $productId, $quantity);
-        $stockStmt->execute();
-        if ($stockStmt->affected_rows !== 1) {
-            throw new Exception('No se pudo reservar el stock');
-        }
-        $stockStmt->close();
-
-        $expiresSql = date('Y-m-d H:i:s', strtotime('+5 minutes'));
-        $ins = $conn->prepare("INSERT INTO reservations (user_id, product_id, quantity, status, reserved_at, expires_at) VALUES (?, ?, ?, 'active', NOW(), ?)");
+        $expiresSql = date('Y-m-d H:i:s', strtotime('+24 hours'));
+        $ins = $conn->prepare(
+            "INSERT INTO reservations (user_id, product_id, quantity, status, reserved_at, expires_at)
+             VALUES (?, ?, ?, 'active', NOW(), ?)"
+        );
         if (!$ins) {
             throw new Exception('Error al preparar reserva: ' . $conn->error);
         }
-        $ins->bind_param("iiis", $userId, $productId, $quantity, $expiresSql);
+        $ins->bind_param('iiis', $userId, $productId, $quantity, $expiresSql);
         if (!$ins->execute()) {
             throw new Exception('No se pudo crear la reserva');
         }
 
         $reservationId = $conn->insert_id;
-        $remainingStock = $stock - $quantity;
         $ins->close();
+
+        $after = get_product_availability($conn, $productId);
         $conn->commit();
 
         send_json(200, [
@@ -142,7 +137,9 @@ if ($method === 'POST' && $action === 'create') {
             'data' => [
                 'id' => $reservationId,
                 'expires_at' => $expiresSql,
-                'available_stock' => $remainingStock,
+                'available_stock' => $after['available'],
+                'stock' => $after['stock'],
+                'reserved' => $after['reserved'],
             ],
         ]);
     } catch (Exception $e) {
@@ -173,17 +170,6 @@ if ($method === 'POST' && $action === 'release') {
             send_json(404, ['status' => 'error', 'message' => 'Reserva no encontrada o ya gestionada']);
         }
 
-        $productId = intval($reservation['product_id']);
-        $quantity = intval($reservation['quantity']);
-
-        $updateStock = $conn->prepare("UPDATE productos SET stock = stock + ?, updated_at = NOW() WHERE id = ?");
-        if (!$updateStock) {
-            throw new Exception('Error al devolver stock: ' . $conn->error);
-        }
-        $updateStock->bind_param("ii", $quantity, $productId);
-        $updateStock->execute();
-        $updateStock->close();
-
         $updateReservation = $conn->prepare("UPDATE reservations SET status = 'cancelled' WHERE id = ?");
         $updateReservation->bind_param("i", $reservationId);
         $updateReservation->execute();
@@ -194,6 +180,71 @@ if ($method === 'POST' && $action === 'release') {
     } catch (Exception $e) {
         $conn->rollback();
         send_json(500, ['status' => 'error', 'message' => $e->getMessage()]);
+    }
+}
+
+if ($method === 'POST' && $action === 'update') {
+    $reservationId = intval($input['reservation_id'] ?? 0);
+    $newQuantity = intval($input['quantity'] ?? 0);
+    $userId = intval($input['user_id'] ?? 0);
+
+    if ($reservationId <= 0 || $newQuantity <= 0) {
+        send_json(400, ['status' => 'error', 'message' => 'Datos invalidos']);
+    }
+
+    $conn->begin_transaction();
+    try {
+        $stmt = $conn->prepare(
+            "SELECT id, user_id, product_id, quantity FROM reservations
+             WHERE id = ? AND status = 'active' FOR UPDATE"
+        );
+        $stmt->bind_param('i', $reservationId);
+        $stmt->execute();
+        $reservation = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$reservation) {
+            throw new Exception('Reserva no encontrada');
+        }
+        if ($userId > 0 && intval($reservation['user_id']) !== $userId) {
+            throw new Exception('No autorizado');
+        }
+
+        $productId = intval($reservation['product_id']);
+        $oldQuantity = intval($reservation['quantity']);
+        $delta = $newQuantity - $oldQuantity;
+
+        if ($delta > 0) {
+            $availability = get_product_availability($conn, $productId, $reservationId);
+            if ($availability['available'] < $delta) {
+                throw new Exception('Stock insuficiente. Disponibles: ' . $availability['available']);
+            }
+        }
+
+        $expiresSql = date('Y-m-d H:i:s', strtotime('+24 hours'));
+        $upd = $conn->prepare(
+            'UPDATE reservations SET quantity = ?, expires_at = ? WHERE id = ? AND status = ?'
+        );
+        $status = 'active';
+        $upd->bind_param('isis', $newQuantity, $expiresSql, $reservationId, $status);
+        $upd->execute();
+        $upd->close();
+
+        $after = get_product_availability($conn, $productId);
+        $conn->commit();
+
+        send_json(200, [
+            'status' => 'success',
+            'data' => [
+                'reservation_id' => $reservationId,
+                'quantity' => $newQuantity,
+                'expires_at' => $expiresSql,
+                'available_stock' => $after['available'],
+            ],
+        ]);
+    } catch (Exception $e) {
+        $conn->rollback();
+        send_json(409, ['status' => 'error', 'message' => $e->getMessage()]);
     }
 }
 

@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../services/auth_service.dart';
+import '../config/constants.dart';
 
 bool _isRemotePath(String path) {
   return path.startsWith('http://') ||
@@ -12,17 +12,31 @@ bool _isRemotePath(String path) {
       path.startsWith('blob:');
 }
 
-String _absoluteImageUrl(String path) {
-  final cleanPath = path.trim();
-  if (cleanPath.isEmpty) return '';
-  if (_isRemotePath(cleanPath)) return cleanPath;
+String getImageUrl(String path) {
+  final p = path.trim();
+  if (p.isEmpty) return '';
 
-  if (cleanPath.startsWith('backend/') || cleanPath.startsWith('storage/')) {
-    return '${AuthService.baseUrl}/${cleanPath.replaceFirst(RegExp(r'^/+'), '')}';
+  var cleaned = p.replaceAll('/backend/', '/');
+  cleaned = cleaned.replaceAll('backend/', '');
+
+  if (_isRemotePath(cleaned)) {
+    return cleaned
+        .replaceFirst('http://localhost/', 'http://127.0.0.1/')
+        .replaceFirst('https://localhost/', 'https://127.0.0.1/');
   }
 
-  return '';
+  // Rutas absolutas (/storage/... o /q-less/...) → siempre bajo BASE_URL (Apache :80)
+  if (cleaned.startsWith('/')) {
+    var path = cleaned.replaceFirst(RegExp(r'^/+'), '');
+    if (path.startsWith('q-less/')) {
+      path = path.substring('q-less/'.length);
+    }
+    return apiUrl(BASE_URL, path);
+  }
+
+  return apiUrl(BASE_URL, cleaned);
 }
+
 
 Widget? _buildDataImage(
   String path, {
@@ -81,13 +95,11 @@ Widget buildProductImage(
     }
   }
 
-  final imageUrlCandidate = _absoluteImageUrl(imageUrl);
-  final imagePathCandidate = _absoluteImageUrl(imagePath);
-  final resolvedUrl = imageUrlCandidate.contains('/storage/blob:')
-      ? imagePathCandidate
-      : imageUrlCandidate.isNotEmpty
-          ? imageUrlCandidate
-          : imagePathCandidate;
+  final imageUrlCandidate = getImageUrl(imageUrl);
+  final imagePathCandidate = getImageUrl(imagePath);
+  final resolvedUrl = imageUrlCandidate.isNotEmpty
+      ? imageUrlCandidate
+      : imagePathCandidate;
 
   if (resolvedUrl.isNotEmpty) {
     return Image.network(
