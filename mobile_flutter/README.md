@@ -1,5 +1,11 @@
 ﻿# Q-LESS - Sistema de Papelería con Flutter y PHP
 
+## Descargar APK en GitHub
+
+- **Releases:** https://github.com/AnderFelipeOrtiz2004/Q-Less/releases  
+- **Instalar en el teléfono:** [INSTALAR_EN_EL_TELEFONO.md](INSTALAR_EN_EL_TELEFONO.md)  
+- **Compilar de nuevo:** [BUILD_APK.md](BUILD_APK.md)
+
 Un prototipo completo de aplicación móvil desarrollado con **Flutter** y backend **PHP/MySQL** para gestionar colas y papelería.
 
 ## Características Implementadas
