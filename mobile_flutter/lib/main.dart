@@ -1,11 +1,15 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
-import 'providers/carrito_provider.dart'; // Sin el punto inicial
+import 'providers/carrito_provider.dart';
 import 'pages/index.dart';
 import 'services/chatbot_service.dart';
 import 'services/auth_service.dart';
-import 'services/sound_service.dart'; 
+import 'services/sound_service.dart';
+import 'theme/app_theme.dart';
+import 'utils/transition_utils.dart';
+import 'widgets/fade_slide_entry.dart';
+import 'widgets/interactive_scale_button.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -39,66 +43,7 @@ class QLessApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Q-LESS',
-      theme: ThemeData(
-        primaryColor: const Color(0xFF3EC13B),
-        scaffoldBackgroundColor: const Color(0xFFF1F1F1),
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          elevation: 0,
-          backgroundColor: Color(0xFF3EC13B),
-          foregroundColor: Colors.white,
-          titleTextStyle: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF3EC13B),
-          brightness: Brightness.light,
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFE4E8E4)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFF3EC13B), width: 2),
-          ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            elevation: 0,
-            backgroundColor: const Color(0xFF3EC13B),
-            foregroundColor: Colors.white,
-            textStyle: const TextStyle(fontWeight: FontWeight.w700),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-        ),
-        pageTransitionsTheme: const PageTransitionsTheme(
-          builders: {
-            TargetPlatform.android: ZoomPageTransitionsBuilder(),
-            TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-            TargetPlatform.windows: ZoomPageTransitionsBuilder(),
-            TargetPlatform.linux: ZoomPageTransitionsBuilder(),
-          },
-        ),
-        useMaterial3: true,
-      ),
+      theme: buildAppTheme(),
       home: const LoginScreen(),
       routes: {
         '/login': (context) => const LoginScreen(),
@@ -178,8 +123,8 @@ class _LoginScreenState extends State<LoginScreen> {
           Provider.of<CarritoProvider>(context, listen: false).inicializarCarrito(userId: userId);
 
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => HomePage(
+            fadeSlideRoute(
+              HomePage(
                 userId: userId,
                 userName: userName,
                 userRole: userRole,
@@ -223,67 +168,100 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final headerHeight = MediaQuery.of(context).size.height * 0.30;
+
     return Scaffold(
       body: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         child: Column(
           children: [
-            Container(
-              width: double.infinity,
-              height: MediaQuery.of(context).size.height * 0.33,
-              decoration: const BoxDecoration(
-                color: Color(0xFF3EC13B),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(40),
-                  bottomRight: Radius.circular(40),
-                ),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    'Q-LESS',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                    ),
+            FadeSlideEntry(
+              duration: const Duration(milliseconds: 520),
+              child: Container(
+                width: double.infinity,
+                height: headerHeight,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [kBrandGreen, kBrandGreenDark],
                   ),
-                  const SizedBox(height: 20),
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: Colors.white24,
-                    child: ClipOval(
-                      child: Image.asset(
-                        'assets/images/logo.png',
-                        width: 70,
-                        height: 70,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) => const Icon(
-                          Icons.storefront,
-                          size: 42,
-                          color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(36),
+                    bottomRight: Radius.circular(36),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x33000000),
+                      blurRadius: 18,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      'Q-LESS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.85, end: 1),
+                      duration: const Duration(milliseconds: 700),
+                      curve: Curves.elasticOut,
+                      builder: (context, scale, child) {
+                        return Transform.scale(scale: scale, child: child);
+                      },
+                      child: CircleAvatar(
+                        radius: 44,
+                        backgroundColor: Colors.white24,
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            width: 76,
+                            height: 76,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) =>
+                                const Icon(
+                              Icons.storefront,
+                              size: 44,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 22),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 22),
               child: Column(
                 children: [
-                  TextField(
+                  FadeSlideEntry(
+                    duration: const Duration(milliseconds: 420),
+                    verticalOffset: 14,
+                    child: TextField(
                     controller: _userController,
                     decoration: const InputDecoration(
                       prefixIcon: Icon(Icons.person_outline),
                       hintText: 'Correo o número',
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  TextField(
+                  ),
+                  const SizedBox(height: 14),
+                  FadeSlideEntry(
+                    duration: const Duration(milliseconds: 480),
+                    verticalOffset: 14,
+                    child: TextField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
                     decoration: InputDecoration(
@@ -301,7 +279,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  ),
+                  const SizedBox(height: 10),
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
@@ -312,10 +291,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  SizedBox(
+                  const SizedBox(height: 16),
+                  FadeSlideEntry(
+                    duration: const Duration(milliseconds: 540),
+                    verticalOffset: 12,
+                    child: SizedBox(
                     width: double.infinity,
-                    height: 55,
+                    height: 54,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF3EC13B),
@@ -346,33 +328,38 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  GestureDetector(
+                  ),
+                  const SizedBox(height: 14),
+                  FadeSlideEntry(
+                    duration: const Duration(milliseconds: 580),
+                    verticalOffset: 10,
+                    child: InteractiveScaleButton(
+                    borderRadius: BorderRadius.circular(16),
                     onTap: () {
                       SoundService.playClick();
                       Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => const RegisterPage(),
-                        ),
+                        fadeSlideRoute(const RegisterPage()),
                       );
                     },
                     child: Container(
                       width: double.infinity,
-                      height: 55,
+                      height: 54,
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: Colors.black12),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Color(0xFFE0E4E0)),
                       ),
                       alignment: Alignment.center,
                       child: const Text(
                         'Crear una cuenta',
                         style: TextStyle(
                           fontSize: 16,
+                          fontWeight: FontWeight.w600,
                           color: Colors.black87,
                         ),
                       ),
                     ),
+                  ),
                   ),
                 ],
               ),

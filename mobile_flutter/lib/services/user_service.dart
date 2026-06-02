@@ -4,7 +4,7 @@ import '../config/constants.dart';
 import '../models/index.dart';
 
 class UserService {
-  static const String baseUrl = BASE_URL;
+  static String get baseUrl => getBaseUrl();
   static String get _endpoint => apiUrl(baseUrl, 'users.php');
 
   static Future<User> fetchUser({required int userId}) async {

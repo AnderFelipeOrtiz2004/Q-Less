@@ -55,8 +55,8 @@ class ChatbotService {
     }
     var relative = trimmed.replaceFirst(RegExp(r'^/+'), '');
     relative = relative.replaceFirst(RegExp(r'^backend/'), '');
-    final base = BASE_URL;
-    return relative.isEmpty ? base : '$base$relative';
+    final base = getBaseUrl();
+    return relative.isEmpty ? base : apiUrl(base, relative);
   }
 
   Future<String> sendMessage(

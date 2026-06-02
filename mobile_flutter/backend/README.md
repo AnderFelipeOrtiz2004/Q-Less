@@ -21,9 +21,9 @@ mysql -u root < database.sql
 ### 2. Configurar los Archivos PHP
 
 1. Copia la carpeta `backend` a la raíz de tu servidor XAMPP:
-   - Windows: `C:\xampp\htdocs\q-less\backend\`
-   - macOS: `/Applications/XAMPP/htdocs/q-less/backend/`
-   - Linux: `/opt/lampp/htdocs/q-less/backend/`
+   - Windows: `C:\xampp\htdocs\q-less\`
+   - macOS: `/Applications/XAMPP/htdocs/q-less/`
+   - Linux: `/opt/lampp/htdocs/q-less/`
 
 2. Edita `config.php` si necesitas cambiar credenciales de base de datos:
    ```php
@@ -49,14 +49,14 @@ Con tu IP de XAMPP. Ejemplos:
 
 Abre en tu navegador:
 ```
-http://localhost/q-less/backend/register.php
+http://localhost/q-less/register.php
 ```
 
 Deberías ver una respuesta JSON indicando un error de método (esperado, porque GET no está permitido).
 
 ## Endpoints Disponibles
 
-### POST /backend/register.php
+### POST /register.php
 Registra un nuevo usuario
 
 **Request Body:**
@@ -118,7 +118,7 @@ Registra un nuevo usuario
 
 ### "Connection timeout"
 - Verifica tu dirección IP
-- Asegúrate que la ruta es correcta: `http://IP:80/q-less/backend/register.php`
+- Asegúrate que la ruta es correcta: `http://IP:80/q-less/register.php`
 
 ## Estructura de Carpetas
 

@@ -71,6 +71,9 @@ class _ProductDetailPageState extends State<ProductDetailPage> {
                     widget.product.imagePath,
                     widget.product.imageUrl,
                     fit: BoxFit.contain,
+                    width: 280,
+                    height: 260,
+                    context: context,
                     placeholder: Container(
                       color: Colors.grey[200],
                       child: const Icon(

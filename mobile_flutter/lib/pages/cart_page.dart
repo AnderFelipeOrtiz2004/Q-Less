@@ -7,6 +7,8 @@ import '../services/order_service.dart';
 import '../services/product_service.dart';
 import '../services/sound_service.dart';
 import '../utils/image_utils.dart';
+import '../widgets/staggered_fade_in.dart';
+import '../widgets/fade_slide_entry.dart';
 
 class CartPage extends StatefulWidget {
   final int userId;
@@ -281,13 +283,21 @@ class _CartPageState extends State<CartPage> {
       ),
       body: _items.isEmpty
           ? Center(
-              child: Column(
+              child: FadeSlideEntry(
+                child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.9, end: 1),
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.elasticOut,
+                    builder: (context, scale, child) =>
+                        Transform.scale(scale: scale, child: child),
+                    child: Icon(
                     Icons.shopping_cart_outlined,
                     size: 80,
                     color: Colors.grey[300],
+                  ),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -332,31 +342,23 @@ class _CartPageState extends State<CartPage> {
                   ),
                 ],
               ),
+              ),
             )
           : Column(
               children: [
                 Expanded(
                   child: ListView.builder(
+                    physics: const BouncingScrollPhysics(),
                     itemCount: _items.length,
                     padding: const EdgeInsets.all(12),
                     itemBuilder: (context, index) {
                       final cartItem = _items[index];
-                      return TweenAnimationBuilder<double>(
+                      return StaggeredFadeIn(
                         key: ValueKey(
                           '${cartItem.product.id}-${cartItem.reservationId ?? index}',
                         ),
-                        tween: Tween(begin: 0, end: 1),
-                        duration: Duration(milliseconds: 220 + index * 35),
-                        curve: Curves.easeOutCubic,
-                        builder: (context, value, child) {
-                          return Opacity(
-                            opacity: value,
-                            child: Transform.translate(
-                              offset: Offset(0, 14 * (1 - value)),
-                              child: child,
-                            ),
-                          );
-                        },
+                        index: index,
+                        offsetY: 16,
                         child: _buildCartItem(cartItem, index),
                       );
                     },
@@ -521,6 +523,9 @@ class _CartPageState extends State<CartPage> {
               product.imagePath,
               product.imageUrl,
               fit: BoxFit.cover,
+              width: 80,
+              height: 80,
+              context: context,
               placeholder: const Icon(
                 Icons.inventory_2_outlined,
                 color: Colors.black38,

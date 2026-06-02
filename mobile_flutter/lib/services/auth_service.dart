@@ -1,26 +1,10 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../config/constants.dart';
 import '../models/index.dart';
 
 class AuthService {
-  /// Base URL configurada para acceder al backend en XAMPP
-  static const String _defaultBaseUrl = BASE_URL;
-
-  static String get baseUrl {
-    final configuredUrl = dotenv.env['API_BASE_URL']?.trim();
-    if (configuredUrl == null || configuredUrl.isEmpty) {
-      return _defaultBaseUrl;
-    }
-    var url = configuredUrl.replaceAll(RegExp(r'/backend/?$'), '');
-    if (url.endsWith('/backend')) {
-      url = url.substring(0, url.length - '/backend'.length);
-    }
-    url = url.replaceAll('/backend/', '/');
-    return url.endsWith('/') ? url : '$url/';
-  }
+  static String get baseUrl => getBaseUrl();
 
   static String _connectionErrorMessage(Object error) {
     final text = error.toString();
@@ -28,7 +12,7 @@ class AuthService {
       return 'No se pudo conectar al servidor (XAMPP). Abre el panel de XAMPP e inicia Apache y MySQL.';
     }
     if (text.contains('Connection refused') || text.contains('Failed host lookup')) {
-      return 'No hay conexión con el backend. Usa la URL http://127.0.0.1/q-less/ y activa Apache.';
+      return 'No hay conexión con el servidor. En el móvil pon en .env la IP de tu PC (ej. http://192.168.1.10/q-less/) y activa Apache en XAMPP.';
     }
     return 'Error de conexión: $text';
   }

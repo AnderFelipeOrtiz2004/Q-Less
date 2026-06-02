@@ -9,7 +9,7 @@ import '../config/constants.dart';
 /// ============================================================
 class CarritoService {
   // URL base uniforme para todas las llamadas al backend
-  static const String baseUrl = BASE_URL;
+  static String get baseUrl => getBaseUrl();
 
   /// Obtiene el carrito actual del usuario desde la base de datos
   static Future<Map<String, dynamic>> obtenerCarrito({required int userId}) async {

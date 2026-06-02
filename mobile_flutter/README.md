@@ -17,7 +17,7 @@ Un prototipo completo de aplicación móvil desarrollado con **Flutter** y backe
 - **UI/UX**: Diseño profesional con colores institucionales (verde #3EC13B)
 
 ### ✅ Backend (PHP/MySQL)
-- **Registro de usuarios**: Endpoint POST `/backend/register.php`
+- **Registro de usuarios**: Endpoint POST `/q-less/register.php`
 - **Validaciones en servidor**: Email duplicado, campos requeridos
 - **Seguridad**: Contraseñas hasheadas con BCRYPT
 - **CORS**: Headers configurados para comunicación móvil
@@ -74,7 +74,7 @@ flutter run
 
 ## Endpoints API
 
-### POST /backend/register.php
+### POST /q-less/register.php
 ```json
 {
   "nombre": "Juan Pérez",

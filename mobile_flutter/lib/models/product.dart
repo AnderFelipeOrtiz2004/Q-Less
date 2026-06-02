@@ -33,9 +33,12 @@ class Product {
     final rawStock = json['stock'] ?? 0;
     final rawAvailable = json['available_stock'] ?? json['available'] ?? rawStock;
 
-    final rawImagePath = json['image_path'] ?? json['imagePath'] ?? json['image_url'] ?? json['imageUrl'];
+    final rawImageUrl = json['image_url'] ?? json['imageUrl'];
+    final rawImagePath = json['image_path'] ?? json['imagePath'];
     final imagePath = (rawImagePath?.toString() ?? '').trim();
-    final imageUrl = (json['image_url']?.toString() ?? imagePath);
+    final imageUrl = (rawImageUrl?.toString().trim().isNotEmpty == true
+        ? rawImageUrl.toString().trim()
+        : imagePath);
 
     int parseInt(dynamic v) {
       if (v == null) return 0;

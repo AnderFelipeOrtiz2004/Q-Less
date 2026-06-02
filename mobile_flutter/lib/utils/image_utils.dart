@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../config/constants.dart';
+import '../widgets/shimmer_placeholder.dart';
 
 bool _isRemotePath(String path) {
   return path.startsWith('http://') ||
@@ -31,10 +32,10 @@ String getImageUrl(String path) {
     if (path.startsWith('q-less/')) {
       path = path.substring('q-less/'.length);
     }
-    return apiUrl(BASE_URL, path);
+    return apiUrl(getBaseUrl(), path);
   }
 
-  return apiUrl(BASE_URL, cleaned);
+  return apiUrl(getBaseUrl(), cleaned);
 }
 
 
@@ -56,6 +57,12 @@ Widget? _buildDataImage(
   }
 }
 
+int? _cacheWidthForDisplay(double? width, BuildContext context) {
+  if (width == null) return 480;
+  final ratio = MediaQuery.devicePixelRatioOf(context);
+  return (width * ratio).round().clamp(120, 900);
+}
+
 Widget buildProductImage(
   String imagePath,
   String imageUrl, {
@@ -63,6 +70,7 @@ Widget buildProductImage(
   double? width,
   double? height,
   Widget? placeholder,
+  BuildContext? context,
 }) {
   final dataImage = _buildDataImage(
     imagePath,
@@ -102,16 +110,34 @@ Widget buildProductImage(
       : imagePathCandidate;
 
   if (resolvedUrl.isNotEmpty) {
+    final cacheWidth =
+        context != null ? _cacheWidthForDisplay(width, context) : 480;
+    final loadingWidget = ShimmerPlaceholder(
+      width: width,
+      height: height,
+      borderRadius: BorderRadius.circular(12),
+    );
+
     return Image.network(
       resolvedUrl,
       fit: fit,
       width: width,
       height: height,
+      filterQuality: FilterQuality.medium,
+      cacheWidth: cacheWidth,
+      gaplessPlayback: true,
       errorBuilder: (_, __, ___) =>
           placeholder ?? const Icon(Icons.image_not_supported_outlined),
       loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return const Center(child: CircularProgressIndicator());
+        if (loadingProgress == null) {
+          return AnimatedOpacity(
+            opacity: 1,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOut,
+            child: child,
+          );
+        }
+        return loadingWidget;
       },
     );
   }

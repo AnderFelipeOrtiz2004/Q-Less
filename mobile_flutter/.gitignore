@@ -48,3 +48,6 @@ app.*.map.json
 .env
 .env.local
 .env.*.local
+
+# APK se publica en GitHub Releases, no en el repo
+releases/*.apk

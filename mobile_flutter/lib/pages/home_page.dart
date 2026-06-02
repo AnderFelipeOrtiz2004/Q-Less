@@ -8,8 +8,10 @@ import '../services/carrito_service.dart';
 import '../services/product_service.dart';
 import '../services/user_service.dart';
 import '../services/sound_service.dart';
+import '../theme/app_theme.dart';
 import '../utils/image_utils.dart';
 import '../utils/transition_utils.dart';
+import '../widgets/staggered_fade_in.dart';
 import 'admin_purchases_page.dart';
 import 'cart_page.dart';
 import 'chatbot_page.dart';
@@ -148,7 +150,7 @@ class _HomePageState extends State<HomePage> {
 
   void _startStockRefresh() {
     _stockRefreshTimer?.cancel();
-    _stockRefreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _stockRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (!mounted) return;
       _loadProducts(silent: true);
     });
@@ -509,31 +511,36 @@ class _HomePageState extends State<HomePage> {
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _loadProducts,
-                color: _brandGreen,
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    _buildBanner(),
-                    _buildDots(),
-                    _buildFeaturedTitle(),
-                    const SizedBox(height: 12),
+                color: kBrandGreen,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
+                  ),
+                  slivers: [
+                    SliverToBoxAdapter(child: _buildBanner()),
+                    SliverToBoxAdapter(child: _buildDots()),
+                    SliverToBoxAdapter(child: _buildFeaturedTitle()),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
                     if (_isLoading)
-                      const Padding(
-                        padding: EdgeInsets.all(32),
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
                         child: Center(child: CircularProgressIndicator()),
                       )
                     else if (_errorMessage.isNotEmpty)
-                      _buildErrorState()
+                      SliverToBoxAdapter(child: _buildErrorState())
                     else if (visibleProducts.isEmpty)
-                      _buildEmptyState()
+                      SliverToBoxAdapter(child: _buildEmptyState())
                     else
-                      ...visibleProducts.asMap().entries.map(
-                            (entry) => _buildAnimatedProductCard(
-                              entry.value,
-                              entry.key,
-                            ),
-                          ),
-                    const SizedBox(height: 24),
+                      SliverList.builder(
+                        itemCount: visibleProducts.length,
+                        itemBuilder: (context, index) {
+                          return StaggeredFadeIn(
+                            index: index,
+                            child: _buildProductCard(visibleProducts[index]),
+                          );
+                        },
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 24)),
                   ],
                 ),
               ),
@@ -812,22 +819,39 @@ class _HomePageState extends State<HomePage> {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(12),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              buildProductImage(
-                product.imagePath,
-                product.imageUrl,
-                fit: BoxFit.cover,
-                placeholder: Container(
-                  color: Colors.grey[200],
-                  child: const Icon(
-                    Icons.image_not_supported_outlined,
-                    color: Colors.black38,
-                    size: 48,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 420),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              return FadeTransition(
+                opacity: animation,
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 0.97, end: 1).animate(animation),
+                  child: child,
+                ),
+              );
+            },
+            child: Stack(
+              key: ValueKey<int>(product.id),
+              fit: StackFit.expand,
+              children: [
+                buildProductImage(
+                  product.imagePath,
+                  product.imageUrl,
+                  fit: BoxFit.cover,
+                  width: MediaQuery.sizeOf(context).width - 16,
+                  height: 200,
+                  context: context,
+                  placeholder: Container(
+                    color: Colors.grey[200],
+                    child: const Icon(
+                      Icons.image_not_supported_outlined,
+                      color: Colors.black38,
+                      size: 48,
+                    ),
                   ),
                 ),
-              ),
               // Gradiente oscuro en la parte inferior para mejorar legibilidad
               Positioned(
                 bottom: 0,
@@ -876,7 +900,8 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1012,6 +1037,9 @@ class _HomePageState extends State<HomePage> {
                   product.imagePath,
                   product.imageUrl,
                   fit: BoxFit.contain,
+                  width: 150,
+                  height: 138,
+                  context: context,
                   placeholder: const Icon(
                     Icons.inventory_2_outlined,
                     size: 54,
@@ -1106,22 +1134,4 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildAnimatedProductCard(Product product, int index) {
-    return TweenAnimationBuilder<double>(
-      key: ValueKey(product.id),
-      tween: Tween(begin: 0, end: 1),
-      duration: Duration(milliseconds: 260 + min(index, 6) * 45),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 18 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: _buildProductCard(product),
-    );
-  }
 }

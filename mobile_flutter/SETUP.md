@@ -68,7 +68,7 @@
    
    Abre en navegador:
    ```
-   http://localhost/q-less/backend/register.php
+   http://localhost/q-less/register.php
    ```
    
    Deberías ver un error JSON (esperado, solo acepta POST):
@@ -237,7 +237,7 @@
 ### "Error in register.php"
 
 **Pasos de debugging:**
-1. Abre navegador: `http://localhost/q-less/backend/register.php`
+1. Abre navegador: `http://localhost/q-less/register.php`
 2. Deberías ver JSON error
 3. Verifica que `config.php` esté en la misma carpeta
 4. Revisa permisos de carpetas (debe ser legible)

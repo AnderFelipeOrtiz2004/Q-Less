@@ -39,7 +39,7 @@
 #   net stop Apache2.4
 #   net start Apache2.4
 # 5) Test with curl (replace path if your backend is under /q-less):
-#   curl -i -X OPTIONS "http://localhost/backend/login.php" -H "Origin: http://localhost:63723" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: Content-Type"
-#   curl -i -X POST "http://localhost/backend/login.php" -H "Origin: http://localhost:63723" -H "Content-Type: application/json" -d '{"email":"admin@local","password":"123456"}'
+#   curl -i -X OPTIONS "http://localhost/q-less/login.php" -H "Origin: http://localhost:63723" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: Content-Type"
+#   curl -i -X POST "http://localhost/q-less/login.php" -H "Origin: http://localhost:63723" -H "Content-Type: application/json" -d '{"email":"admin@local","password":"123456"}'
 
 # If you want, I can create a patch for httpd.conf here, but editing system Apache config requires you to confirm and restart Apache locally.

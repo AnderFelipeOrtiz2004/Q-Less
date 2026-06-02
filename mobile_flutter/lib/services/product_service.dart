@@ -7,7 +7,7 @@ import '../config/constants.dart';
 import '../models/product.dart';
 
 class ProductService {
-  static const String baseUrl = BASE_URL;
+  static String get baseUrl => getBaseUrl();
   static String get _endpoint => apiUrl(baseUrl, 'products.php');
   static String get _reservationsEndpoint => apiUrl(baseUrl, 'reservations.php');
 

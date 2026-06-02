@@ -4,7 +4,7 @@ import '../config/constants.dart';
 import '../models/order.dart';
 
 class OrderService {
-  static const String baseUrl = BASE_URL;
+  static String get baseUrl => getBaseUrl();
   static String get _endpoint => apiUrl(baseUrl, 'orders.php');
 
   /// Create a new order (purchase)
