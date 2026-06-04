@@ -344,10 +344,8 @@ cd frontend
 2. Instalar dependencias
 npm install
 
-3. Ejecutar el proyecto Angular
-ng serve
-La aplicación estará disponible en:
-http://localhost:4200
+3. Ejecutar el proyecto Angular - ng serve
+4. La aplicación estará disponible en: http://localhost:4200
 
 # Variables de Entorno
 Backend (.env)
@@ -608,11 +606,12 @@ Esto permite mantener una arquitectura modular, escalable y mantenible.
 
 
 # Ejecución del Proyecto
-Backend
-php artisan serve
+### Backend
+- php artisan serve
 
-Frontend
-ng serve`
+### Frontend
+- ng serve
+
 # Módulos Principales
 Autenticación
 Archivos relevantes:
