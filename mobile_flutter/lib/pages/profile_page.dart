@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../models/index.dart';
@@ -5,6 +8,7 @@ import '../services/user_service.dart';
 import '../utils/image_utils.dart';
 import '../utils/transition_utils.dart';
 import '../widgets/index.dart';
+import '../widgets/server_url_panel.dart';
 import 'edit_profile_page.dart';
 import 'my_purchases_page.dart';
 import 'products_page.dart';
@@ -35,6 +39,11 @@ class _ProfilePageState extends State<ProfilePage> {
   String? _errorMessage;
 
   bool get _canEdit => widget.showLogout && widget.userId != null;
+
+  bool get _showServerPanel {
+    if (kIsWeb) return true;
+    return Platform.isWindows || Platform.isMacOS || Platform.isLinux;
+  }
 
   @override
   void initState() {
@@ -215,7 +224,11 @@ class _ProfilePageState extends State<ProfilePage> {
                         'Miembro desde ${_user?.createdAt != null ? '${_user!.createdAt!.year}-${_user!.createdAt!.month.toString().padLeft(2, '0')}-${_user!.createdAt!.day.toString().padLeft(2, '0')}' : '---'}',
                         style: const TextStyle(fontSize: 12, color: Colors.black54),
                       ),
-                      const SizedBox(height: 24),
+                      if (_showServerPanel) ...[
+                        const SizedBox(height: 24),
+                        const ServerUrlPanel(),
+                        const SizedBox(height: 20),
+                      ],
                       if (_canEdit)
                         InteractiveScaleButton(
                           onTap: () async {

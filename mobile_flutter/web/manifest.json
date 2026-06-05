@@ -1,11 +1,11 @@
 {
-    "name": "q_less_prototype",
-    "short_name": "q_less_prototype",
+    "name": "Q-LESS",
+    "short_name": "Q-LESS",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#76C11F",
+    "theme_color": "#76C11F",
+    "description": "Q-LESS — materiales y proyectos escolares",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

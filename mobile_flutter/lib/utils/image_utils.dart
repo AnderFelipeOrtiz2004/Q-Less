@@ -26,7 +26,6 @@ String getImageUrl(String path) {
         .replaceFirst('https://localhost/', 'https://127.0.0.1/');
   }
 
-  // Rutas absolutas (/storage/... o /q-less/...) → siempre bajo BASE_URL (Apache :80)
   if (cleaned.startsWith('/')) {
     var path = cleaned.replaceFirst(RegExp(r'^/+'), '');
     if (path.startsWith('q-less/')) {
@@ -37,7 +36,6 @@ String getImageUrl(String path) {
 
   return apiUrl(getBaseUrl(), cleaned);
 }
-
 
 Widget? _buildDataImage(
   String path, {
@@ -129,14 +127,7 @@ Widget buildProductImage(
       errorBuilder: (_, __, ___) =>
           placeholder ?? const Icon(Icons.image_not_supported_outlined),
       loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) {
-          return AnimatedOpacity(
-            opacity: 1,
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeOut,
-            child: child,
-          );
-        }
+        if (loadingProgress == null) return child;
         return loadingWidget;
       },
     );
@@ -144,4 +135,42 @@ Widget buildProductImage(
 
   return placeholder ??
       const Center(child: Icon(Icons.image_not_supported_outlined));
+}
+
+/// Avatar circular del usuario (perfil / chatbot).
+Widget buildUserAvatar({
+  required String avatarPath,
+  required String avatarUrl,
+  double size = 36,
+}) {
+  final resolvedUrl = avatarUrl.isNotEmpty ? avatarUrl : getImageUrl(avatarPath);
+  final hasImage = avatarPath.isNotEmpty || resolvedUrl.isNotEmpty;
+
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(size / 2),
+    child: SizedBox(
+      width: size,
+      height: size,
+      child: hasImage
+          ? buildProductImage(
+              avatarPath,
+              resolvedUrl,
+              fit: BoxFit.cover,
+              width: size,
+              height: size,
+              placeholder: _avatarPlaceholder(size),
+            )
+          : _avatarPlaceholder(size),
+    ),
+  );
+}
+
+Widget _avatarPlaceholder(double size) {
+  return Container(
+    width: size,
+    height: size,
+    color: const Color(0xFF3EC13B),
+    alignment: Alignment.center,
+    child: Icon(Icons.person, color: Colors.white, size: size * 0.55),
+  );
 }

@@ -3,6 +3,18 @@ import '../models/order.dart';
 import '../services/order_service.dart';
 import '../utils/image_utils.dart';
 
+class _StatusBadgeStyle {
+  final Color bg;
+  final Color fg;
+  final String label;
+
+  const _StatusBadgeStyle({
+    required this.bg,
+    required this.fg,
+    required this.label,
+  });
+}
+
 class MyPurchasesPage extends StatefulWidget {
   final int userId;
   final String userName;
@@ -118,7 +130,38 @@ class _MyPurchasesPageState extends State<MyPurchasesPage> {
     );
   }
 
+  _StatusBadgeStyle _statusStyle(String status) {
+    final s = status.toLowerCase();
+    if (s == 'pendiente') {
+      return const _StatusBadgeStyle(
+        bg: Color(0xFFFFF3E0),
+        fg: Color(0xFFE8A838),
+        label: 'Pendiente',
+      );
+    }
+    if (s == 'rechazada' || s == 'rechazado') {
+      return const _StatusBadgeStyle(
+        bg: Color(0xFFFFEBEE),
+        fg: Colors.red,
+        label: 'Rechazada',
+      );
+    }
+    if (s == 'aprobada' || s == 'completada') {
+      return _StatusBadgeStyle(
+        bg: _brandGreen.withOpacity(0.12),
+        fg: _brandGreen,
+        label: s == 'aprobada' ? 'Aprobada' : 'Completada',
+      );
+    }
+    return _StatusBadgeStyle(
+      bg: Colors.grey.withOpacity(0.12),
+      fg: Colors.grey,
+      label: status,
+    );
+  }
+
   Widget _buildOrderCard(Order order) {
+    final status = _statusStyle(order.status);
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
@@ -128,7 +171,7 @@ class _MyPurchasesPageState extends State<MyPurchasesPage> {
         border: Border.all(color: Colors.grey[200]!),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
@@ -197,16 +240,16 @@ class _MyPurchasesPageState extends State<MyPurchasesPage> {
                             horizontal: 8,
                             vertical: 4,
                           ),
-                            decoration: BoxDecoration(
-                            color: _brandGreen.withValues(alpha: 0.1),
+                          decoration: BoxDecoration(
+                            color: status.bg,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            order.status.toUpperCase(),
-                            style: const TextStyle(
+                            status.label,
+                            style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
-                              color: _brandGreen,
+                              color: status.fg,
                             ),
                           ),
                         ),

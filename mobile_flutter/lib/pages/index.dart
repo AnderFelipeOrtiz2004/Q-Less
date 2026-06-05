@@ -9,3 +9,4 @@ export 'product_detail_page.dart';
 export 'cart_page.dart';
 export 'edit_profile_page.dart';
 export 'my_purchases_page.dart';
+export 'favorites_page.dart';

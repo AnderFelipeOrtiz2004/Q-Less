@@ -19,7 +19,9 @@ $conn->options(MYSQLI_OPT_CONNECT_TIMEOUT, 5);
 $conn->options(MYSQLI_OPT_READ_TIMEOUT, 15);
 
 if (!$conn->real_connect($dbHost, $dbUser, $dbPass, $dbName, $dbPort)) {
-    json_connection_error('Error de conexión a la base de datos. Verifica que MySQL esté activo en XAMPP.');
+    if (!$conn->real_connect('localhost', $dbUser, $dbPass, $dbName, $dbPort)) {
+        json_connection_error('Error de conexión a la base de datos. Verifica que MySQL esté activo en XAMPP.');
+    }
 }
 
 $conn->set_charset('utf8mb4');
@@ -45,6 +47,9 @@ if ($docRoot && $appRoot) {
 $baseUrl = $scheme . '://' . $httpHost . $root_dir;
 
 require_once __DIR__ . '/helpers.php';
+
+ensure_users_table($conn);
+ensure_ordenes_table($conn);
 
 foreach (['storage', 'storage/products', 'storage/avatars'] as $dir) {
     $fullDir = __DIR__ . '/' . $dir;

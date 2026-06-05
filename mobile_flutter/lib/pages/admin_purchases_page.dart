@@ -20,23 +20,367 @@ class AdminPurchasesPage extends StatefulWidget {
   State<AdminPurchasesPage> createState() => _AdminPurchasesPageState();
 }
 
-class _AdminPurchasesPageState extends State<AdminPurchasesPage> {
+class _AdminPurchasesPageState extends State<AdminPurchasesPage>
+    with SingleTickerProviderStateMixin {
   static const Color _brandGreen = Color(0xFF56C900);
 
-  late Future<List<Order>> _ordersFuture;
+  late TabController _tabController;
+  late Future<List<Order>> _pendingFuture;
+  late Future<List<Order>> _allFuture;
+  final Set<int> _processingIds = {};
 
   @override
   void initState() {
     super.initState();
-    _ordersFuture = _loadOrders();
+    _tabController = TabController(length: 2, vsync: this);
+    _reload();
   }
 
-  Future<List<Order>> _loadOrders() {
-    return OrderService.fetchAllOrders(
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _reload() {
+    _pendingFuture = OrderService.fetchPendingOrders(
+      userId: widget.userId,
+      role: widget.userRole,
+    );
+    _allFuture = OrderService.fetchAllOrders(
       userId: widget.userId,
       role: widget.userRole,
     );
   }
+
+  Future<void> _refresh() async {
+    setState(_reload);
+    await Future.wait([_pendingFuture, _allFuture]);
+  }
+
+  Future<void> _approve(Order order) async {
+    await _handleAction(order, approve: true);
+  }
+
+  Future<void> _reject(Order order) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rechazar compra'),
+        content: Text(
+          '¿Rechazar la solicitud de ${order.productName} (x${order.quantity})?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Rechazar'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    await _handleAction(order, approve: false);
+  }
+
+  Future<void> _handleAction(Order order, {required bool approve}) async {
+    if (_processingIds.contains(order.id)) return;
+    setState(() => _processingIds.add(order.id));
+
+    final result = approve
+        ? await OrderService.approveOrder(
+            adminUserId: widget.userId,
+            role: widget.userRole,
+            orderId: order.id,
+          )
+        : await OrderService.rejectOrder(
+            adminUserId: widget.userId,
+            role: widget.userRole,
+            orderId: order.id,
+          );
+
+    if (!mounted) return;
+    setState(() => _processingIds.remove(order.id));
+
+    final ok = result['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result['message']?.toString() ??
+              (ok
+                  ? (approve ? 'Compra aprobada' : 'Compra rechazada')
+                  : 'No se pudo procesar'),
+        ),
+        backgroundColor: ok ? _brandGreen : Colors.red,
+      ),
+    );
+    if (ok) await _refresh();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: _brandGreen,
+        foregroundColor: Colors.white,
+        title: const Text('Gestión de compras'),
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          tabs: const [
+            Tab(text: 'Pendientes'),
+            Tab(text: 'Historial'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _PendingTab(
+            future: _pendingFuture,
+            processingIds: _processingIds,
+            onRefresh: _refresh,
+            onApprove: _approve,
+            onReject: _reject,
+          ),
+          _HistoryTab(
+            future: _allFuture,
+            onRefresh: _refresh,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PendingTab extends StatelessWidget {
+  final Future<List<Order>> future;
+  final Set<int> processingIds;
+  final Future<void> Function() onRefresh;
+  final Future<void> Function(Order) onApprove;
+  final Future<void> Function(Order) onReject;
+
+  const _PendingTab({
+    required this.future,
+    required this.processingIds,
+    required this.onRefresh,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      color: const Color(0xFF56C900),
+      child: FutureBuilder<List<Order>>(
+        future: future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                const Icon(Icons.error_outline, size: 56),
+                const SizedBox(height: 12),
+                Text(
+                  'No se pudieron cargar pendientes: ${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            );
+          }
+
+          final orders = snapshot.data ?? [];
+          if (orders.isEmpty) {
+            return ListView(
+              children: const [
+                SizedBox(height: 120),
+                Center(
+                  child: Text(
+                    'No hay compras pendientes de revisión',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: orders.length,
+            itemBuilder: (context, index) {
+              final order = orders[index];
+              return _PendingOrderCard(
+                order: order,
+                busy: processingIds.contains(order.id),
+                onApprove: () => onApprove(order),
+                onReject: () => onReject(order),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PendingOrderCard extends StatelessWidget {
+  final Order order;
+  final bool busy;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
+
+  const _PendingOrderCard({
+    required this.order,
+    required this.busy,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final buyer =
+        order.userName.isNotEmpty ? order.userName : 'Usuario ${order.userId}';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFFE082)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.pending_actions, color: Color(0xFFE8A838)),
+              const SizedBox(width: 8),
+              const Text(
+                'Pendiente de aprobación',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: buildProductImage(
+                    order.productImageUrl,
+                    order.productImageUrl,
+                    fit: BoxFit.cover,
+                    placeholder: const Icon(Icons.inventory_2_outlined),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      buyer,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                    if (order.userEmail.isNotEmpty)
+                      Text(
+                        order.userEmail,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    const SizedBox(height: 6),
+                    Text(
+                      order.productName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Cantidad: ${order.quantity}  |  Total: \$${order.totalPrice}',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: busy ? null : onReject,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                  ),
+                  child: const Text('Rechazar'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: FilledButton(
+                  onPressed: busy ? null : onApprove,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF56C900),
+                  ),
+                  child: busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Aprobar compra'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryTab extends StatelessWidget {
+  final Future<List<Order>> future;
+  final Future<void> Function() onRefresh;
+
+  const _HistoryTab({
+    required this.future,
+    required this.onRefresh,
+  });
 
   int _totalQuantity(List<Order> orders) {
     return orders.fold(0, (sum, order) => sum + order.quantity);
@@ -54,77 +398,63 @@ class _AdminPurchasesPageState extends State<AdminPurchasesPage> {
     return grouped;
   }
 
-  Future<void> _refresh() async {
-    setState(() {
-      _ordersFuture = _loadOrders();
-    });
-    await _ordersFuture;
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: _brandGreen,
-        foregroundColor: Colors.white,
-        title: const Text('Compras de usuarios'),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        color: _brandGreen,
-        child: FutureBuilder<List<Order>>(
-          future: _ordersFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      color: const Color(0xFF56C900),
+      child: FutureBuilder<List<Order>>(
+        future: future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-            if (snapshot.hasError) {
-              return ListView(
-                padding: const EdgeInsets.all(24),
-                children: [
-                  const Icon(Icons.error_outline, size: 56),
-                  const SizedBox(height: 12),
-                  Text(
-                    'No se pudieron cargar las compras: ${snapshot.error}',
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              );
-            }
-
-            final orders = snapshot.data ?? [];
-            if (orders.isEmpty) {
-              return const Center(
-                child: Text('Todavia no hay compras registradas'),
-              );
-            }
-
-            final grouped = _ordersByUser(orders);
-            final userGroups = grouped.entries.toList()
-              ..sort((a, b) {
-                final latestA = a.value.first.createdAt;
-                final latestB = b.value.first.createdAt;
-                return latestB.compareTo(latestA);
-              });
-
-            return ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: userGroups.length + 1,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _SummaryCard(
-                    orderCount: orders.length,
-                    totalQuantity: _totalQuantity(orders),
-                    totalMoney: _totalMoney(orders),
-                  );
-                }
-
-                return _UserHistoryCard(orders: userGroups[index - 1].value);
-              },
+          if (snapshot.hasError) {
+            return ListView(
+              padding: const EdgeInsets.all(24),
+              children: [
+                const Icon(Icons.error_outline, size: 56),
+                const SizedBox(height: 12),
+                Text(
+                  'No se pudieron cargar las compras: ${snapshot.error}',
+                  textAlign: TextAlign.center,
+                ),
+              ],
             );
-          },
-        ),
+          }
+
+          final orders = snapshot.data ?? [];
+          if (orders.isEmpty) {
+            return const Center(
+              child: Text('Todavía no hay compras registradas'),
+            );
+          }
+
+          final grouped = _ordersByUser(orders);
+          final userGroups = grouped.entries.toList()
+            ..sort((a, b) {
+              final latestA = a.value.first.createdAt;
+              final latestB = b.value.first.createdAt;
+              return latestB.compareTo(latestA);
+            });
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: userGroups.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return _SummaryCard(
+                  orderCount: orders.length,
+                  totalQuantity: _totalQuantity(orders),
+                  totalMoney: _totalMoney(orders),
+                );
+              }
+
+              return _UserHistoryCard(orders: userGroups[index - 1].value);
+            },
+          );
+        },
       ),
     );
   }
@@ -172,7 +502,7 @@ class _UserHistoryCard extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         children: [
-          ...orders.map((order) => _OrderAdminCard(order: order)).toList(),
+          ...orders.map((order) => _OrderAdminCard(order: order)),
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
@@ -271,10 +601,18 @@ class _OrderAdminCard extends StatelessWidget {
 
   const _OrderAdminCard({required this.order});
 
+  Color _statusColor(String status) {
+    final s = status.toLowerCase();
+    if (s == 'pendiente') return const Color(0xFFE8A838);
+    if (s == 'rechazada' || s == 'rechazado') return Colors.red;
+    return const Color(0xFF56C900);
+  }
+
   @override
   Widget build(BuildContext context) {
     final buyer =
         order.userName.isNotEmpty ? order.userName : 'Usuario ${order.userId}';
+    final statusColor = _statusColor(order.status);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -305,14 +643,38 @@ class _OrderAdminCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  buyer,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        buyer,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        order.status,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 if (order.userEmail.isNotEmpty) ...[
                   const SizedBox(height: 2),

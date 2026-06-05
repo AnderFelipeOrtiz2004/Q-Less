@@ -1,5 +1,61 @@
 <?php
 
+function ensure_users_table(mysqli $conn): void
+{
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS users (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            name VARCHAR(100) NOT NULL,
+            email VARCHAR(100) NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            role ENUM('aprendiz', 'instructor', 'admin') NOT NULL DEFAULT 'aprendiz',
+            avatar_path VARCHAR(255) NULL,
+            description TEXT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_users_email (email)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    migrate_legacy_usuarios_table($conn);
+}
+
+function migrate_legacy_usuarios_table(mysqli $conn): void
+{
+    $legacy = $conn->query("SHOW TABLES LIKE 'usuarios'");
+    if (!$legacy || $legacy->num_rows === 0) {
+        return;
+    }
+
+    $columns = [];
+    $result = $conn->query('SHOW COLUMNS FROM usuarios');
+    if (!$result) {
+        return;
+    }
+    while ($row = $result->fetch_assoc()) {
+        $columns[$row['Field']] = true;
+    }
+
+    $nameCol = isset($columns['nombre']) ? 'nombre' : (isset($columns['name']) ? 'name' : null);
+    $emailCol = isset($columns['correo']) ? 'correo' : (isset($columns['email']) ? 'email' : null);
+    $passCol = isset($columns['password']) ? 'password' : (isset($columns['contrasena']) ? 'contrasena' : null);
+    $roleCol = isset($columns['role']) ? 'role' : (isset($columns['rol']) ? 'rol' : null);
+
+    if ($emailCol === null || $passCol === null) {
+        return;
+    }
+
+    $nameExpr = $nameCol !== null ? "COALESCE(NULLIF($nameCol, ''), 'Usuario')" : "'Usuario'";
+    $roleExpr = $roleCol !== null ? "COALESCE(NULLIF($roleCol, ''), 'aprendiz')" : "'aprendiz'";
+
+    $sql = "INSERT IGNORE INTO users (name, email, password, role)
+            SELECT $nameExpr, $emailCol, $passCol, $roleExpr
+            FROM usuarios
+            WHERE $emailCol IS NOT NULL AND $emailCol <> ''";
+
+    @$conn->query($sql);
+}
+
 function ensure_ordenes_table(mysqli $conn): void
 {
     $sql = "CREATE TABLE IF NOT EXISTS ordenes (
@@ -10,16 +66,23 @@ function ensure_ordenes_table(mysqli $conn): void
         quantity INT NOT NULL DEFAULT 1,
         price INT NOT NULL DEFAULT 0,
         total_price INT NOT NULL DEFAULT 0,
-        status VARCHAR(50) DEFAULT 'completada',
+        status VARCHAR(50) DEFAULT 'pendiente',
+        reservation_id INT NULL,
         product_image_url VARCHAR(255) NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_orders_user (user_id),
         INDEX idx_orders_product (product_id),
+        INDEX idx_orders_status (status),
         INDEX idx_orders_created_at (created_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
     $conn->query($sql);
+
+    $reservationCol = $conn->query("SHOW COLUMNS FROM ordenes LIKE 'reservation_id'");
+    if ($reservationCol && $reservationCol->num_rows === 0) {
+        $conn->query('ALTER TABLE ordenes ADD COLUMN reservation_id INT NULL AFTER product_id');
+    }
 }
 
 /**

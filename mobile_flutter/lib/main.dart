@@ -5,11 +5,13 @@ import 'providers/carrito_provider.dart';
 import 'pages/index.dart';
 import 'services/chatbot_service.dart';
 import 'services/auth_service.dart';
+import 'services/server_config_service.dart';
 import 'services/sound_service.dart';
 import 'theme/app_theme.dart';
 import 'utils/transition_utils.dart';
 import 'widgets/fade_slide_entry.dart';
 import 'widgets/interactive_scale_button.dart';
+import 'widgets/splash_gate.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -18,6 +20,8 @@ void main() async {
   } catch (_) {
     // Keep the app usable even when the local .env asset is missing.
   }
+
+  await ServerConfigService.init();
 
   try {
     ChatbotService.instance.init();
@@ -30,7 +34,7 @@ void main() async {
   runApp(
     ChangeNotifierProvider(
       create: (context) => CarritoProvider(),
-      child: const QLessApp(),
+      child: const SplashGate(child: QLessApp()),
     ),
   );
 }

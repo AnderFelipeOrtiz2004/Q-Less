@@ -7,6 +7,7 @@ import '../services/order_service.dart';
 import '../services/product_service.dart';
 import '../services/sound_service.dart';
 import '../utils/image_utils.dart';
+import '../widgets/quantity_input.dart';
 import '../widgets/staggered_fade_in.dart';
 import '../widgets/fade_slide_entry.dart';
 
@@ -113,16 +114,27 @@ class _CartPageState extends State<CartPage> {
     widget.onContinueShopping?.call();
   }
 
-  Future<void> _changeQuantity(int index, int delta) async {
+  Future<void> _setQuantity(int index, int newQty) async {
     final item = _items[index];
-    final newQty = item.quantity + delta;
 
     if (newQty <= 0) {
       await _removeItem(index);
       return;
     }
 
-    if (item.reservationId == null) return;
+    if (newQty > item.product.availableStock) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Solo hay ${item.product.availableStock} unidades disponibles',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (item.reservationId == null || newQty == item.quantity) return;
 
     setState(() => _isProcessing = true);
 
@@ -177,6 +189,7 @@ class _CartPageState extends State<CartPage> {
     try {
       int successCount = 0;
       final List<int> failedIndices = [];
+      String? successMessage;
 
       // Procesar cada compra
       for (int i = 0; i < _items.length; i++) {
@@ -195,6 +208,7 @@ class _CartPageState extends State<CartPage> {
 
         if (orderResponse['success'] == true) {
           successCount++;
+          successMessage = orderResponse['message']?.toString();
         } else {
           failedIndices.add(i);
         }
@@ -210,10 +224,12 @@ class _CartPageState extends State<CartPage> {
         // Todas las compras fueron exitosas
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content:
-                Text('¡Compra exitosa! Se compraron $_itemCount producto(s)'),
+            content: Text(
+              successMessage ??
+                  'Solicitud enviada. Un administrador revisará tu compra ($_itemCount producto(s)).',
+            ),
             backgroundColor: _brandGreen,
-            duration: const Duration(seconds: 3),
+            duration: const Duration(seconds: 4),
           ),
         );
 
@@ -567,32 +583,13 @@ class _CartPageState extends State<CartPage> {
                   ),
                 ],
                 const SizedBox(height: 8),
-                Row(
-                  children: [
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      onPressed: _isProcessing
-                          ? null
-                          : () => _changeQuantity(index, -1),
-                      icon: const Icon(Icons.remove_circle_outline),
-                      color: _brandGreen,
-                    ),
-                    Text(
-                      '${cartItem.quantity}',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      onPressed: _isProcessing
-                          ? null
-                          : () => _changeQuantity(index, 1),
-                      icon: const Icon(Icons.add_circle_outline),
-                      color: _brandGreen,
-                    ),
-                  ],
+                QuantityInput(
+                  value: cartItem.quantity,
+                  max: cartItem.product.availableStock > 0
+                      ? cartItem.product.availableStock
+                      : cartItem.quantity,
+                  enabled: !_isProcessing,
+                  onChanged: (qty) => _setQuantity(index, qty),
                 ),
               ],
             ),

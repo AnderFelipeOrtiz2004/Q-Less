@@ -85,6 +85,78 @@ class OrderService {
     }
   }
 
+  static Future<Map<String, dynamic>> approveOrder({
+    required int adminUserId,
+    required String role,
+    required int orderId,
+  }) async {
+    return _postAction(
+      action: 'approve',
+      body: {
+        'user_id': adminUserId,
+        'role': role,
+        'order_id': orderId,
+      },
+    );
+  }
+
+  static Future<Map<String, dynamic>> rejectOrder({
+    required int adminUserId,
+    required String role,
+    required int orderId,
+  }) async {
+    return _postAction(
+      action: 'reject',
+      body: {
+        'user_id': adminUserId,
+        'role': role,
+        'order_id': orderId,
+      },
+    );
+  }
+
+  static Future<List<Order>> fetchPendingOrders({
+    required int userId,
+    required String role,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$_endpoint?action=get_pending_orders&user_id=$userId&role=$role',
+      );
+      final response = await http.get(uri, headers: const {'Accept': 'application/json'})
+          .timeout(apiTimeout);
+      final jsonResponse = jsonDecode(_cleanResponseBody(response.body));
+      if (response.statusCode != 200 || jsonResponse['status'] != 'success') {
+        throw Exception(jsonResponse['message'] ?? 'No se pudieron cargar pendientes');
+      }
+      final items = jsonResponse['data'] as List<dynamic>? ?? [];
+      return items.map((item) => Order.fromJson(item as Map<String, dynamic>)).toList();
+    } catch (e) {
+      throw Exception('Error fetching pending orders: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> _postAction({
+    required String action,
+    required Map<String, dynamic> body,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse(_endpoint),
+            headers: const {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({...body, 'action': action}),
+          )
+          .timeout(apiTimeout);
+      return _parseResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': 'Error: ${e.toString()}', 'data': null};
+    }
+  }
+
   static Future<List<Order>> fetchAllOrders({
     required int userId,
     required String role,

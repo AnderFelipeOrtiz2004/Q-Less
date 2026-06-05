@@ -34,7 +34,12 @@ class ChatbotService {
     _configurationError = null;
 
     final apiKey = dotenv.env['GEMINI_API_KEY']?.trim();
-    final backendUrl = _normalizeBackendUrl(dotenv.env['CHATBOT_BACKEND_URL']?.trim());
+    final envChatbot = dotenv.env['CHATBOT_BACKEND_URL']?.trim();
+    final backendUrl = _normalizeBackendUrl(
+      envChatbot != null && envChatbot.isNotEmpty
+          ? envChatbot
+          : apiUrl(getBaseUrl(), 'chatbot.php'),
+    );
 
     if ((apiKey == null || apiKey.isEmpty) &&
         (backendUrl == null || backendUrl.isEmpty)) {
@@ -79,6 +84,19 @@ class ChatbotService {
     final category = _extractChatCategory(sanitizedUserMessage);
     final prompt = await _buildProjectPrompt(sanitizedUserMessage);
 
+    // Backend primero (incluye respuesta local si Gemini no tiene cuota).
+    if (backendUrl != null && backendUrl.isNotEmpty) {
+      final backendReply = await _sendHistoryToBackend(
+        backendUrl,
+        _normalizeHistory(chatHistory),
+        userId: userId,
+        category: category,
+      );
+      if (!_isBackendFailureMessage(backendReply)) {
+        return _sanitizeBotResponse(backendReply);
+      }
+    }
+
     if (apiKey != null && apiKey.isNotEmpty) {
       Object? lastError;
       for (final config in _models) {
@@ -94,7 +112,7 @@ class ChatbotService {
           final response = await _generateWithRetry(model, prompt);
           final text = response.text;
           if (text != null && text.trim().isNotEmpty) {
-            return text;
+            return _sanitizeBotResponse(text);
           }
         } catch (e) {
           lastError = e;
@@ -105,25 +123,7 @@ class ChatbotService {
         }
       }
 
-      if (backendUrl != null && backendUrl.isNotEmpty) {
-        return _sendHistoryToBackend(
-          backendUrl,
-          _normalizeHistory(chatHistory),
-          userId: userId,
-          category: category,
-        );
-      }
-
       return 'No se encontro un modelo de Gemini disponible. Ultimo error: ${lastError.toString()}';
-    }
-
-    if (backendUrl != null && backendUrl.isNotEmpty) {
-      return _sendHistoryToBackend(
-        backendUrl,
-        _normalizeHistory(chatHistory),
-        userId: userId,
-        category: category,
-      );
     }
 
     return _configurationError ?? 'Chatbot no configurado.';
@@ -133,7 +133,7 @@ class ChatbotService {
       String backendUrl, List<Map<String, String>> chatHistory,
       {int? userId, String? category}) async {
     final normalizedHistory = _normalizeHistory(chatHistory);
-    final body = <String, dynamic>{
+    final requestBody = <String, dynamic>{
       'history': normalizedHistory,
       if (userId != null) 'user_id': userId,
       if (category != null && category.isNotEmpty) 'categoria': category,
@@ -145,7 +145,7 @@ class ChatbotService {
             .post(
               Uri.parse(backendUrl),
               headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(body),
+              body: jsonEncode(requestBody),
             )
             .timeout(const Duration(seconds: 20));
 
@@ -177,6 +177,13 @@ class ChatbotService {
           }
         }
 
+        final responseBody = response.body;
+        try {
+          final payload = jsonDecode(responseBody);
+          if (payload is Map && payload['message'] != null) {
+            return payload['message'].toString();
+          }
+        } catch (_) {}
         return 'Error del backend: ${response.statusCode}';
       } catch (e) {
         if (attempt < _maxRetryAttempts && _isRetriableError(e)) {
@@ -218,6 +225,7 @@ CONSEJOS
 - 2 o 3 recomendaciones cortas.
 
 No uses Markdown con asteriscos, tablas ni encabezados con #.
+No menciones IA, Gemini, APIs ni el tipo de asistente que eres.
 ''';
   }
 
@@ -262,6 +270,23 @@ No uses Markdown con asteriscos, tablas ni encabezados con #.
     }
 
     throw lastError ?? Exception('Error desconocido al generar la respuesta.');
+  }
+
+  String _sanitizeBotResponse(String text) {
+    final blocked = RegExp(
+      r'gemini|modo local|sin ia|inteligencia artificial|cuota de|api de ia|usar ia|verifica.*\bia\b|como ia|la ia ',
+      caseSensitive: false,
+    );
+    final lines = text.split('\n');
+    final cleaned = lines.where((line) => !blocked.hasMatch(line)).join('\n');
+    return cleaned.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
+  }
+
+  bool _isBackendFailureMessage(String message) {
+    final lower = message.toLowerCase();
+    return lower.startsWith('error del backend') ||
+        lower.startsWith('error al conectar con el backend') ||
+        lower.contains('chatbot no está disponible');
   }
 
   bool _isRetriableError(Object error) {

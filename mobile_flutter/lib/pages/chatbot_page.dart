@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/chatbot_service.dart';
 import '../services/sound_service.dart';
+import '../services/user_service.dart';
+import '../utils/image_utils.dart';
 import '../widgets/index.dart';
 
 class ChatbotPage extends StatefulWidget {
@@ -33,6 +35,8 @@ class _ChatbotPageState extends State<ChatbotPage> {
   final List<ChatSession> _savedSessions = [];
   late ChatSession _currentSession;
   bool _isLoading = false;
+  String _userAvatarPath = '';
+  String _userAvatarUrl = '';
 
   @override
   void initState() {
@@ -40,8 +44,44 @@ class _ChatbotPageState extends State<ChatbotPage> {
     _chatKey = _buildChatKey(widget.userId, widget.userRole);
     _sessionsKey = '${_chatKey}_sessions';
     _currentSession = _createSession();
+    _loadUserAvatar();
     _loadSavedData();
   }
+
+  Future<void> _loadUserAvatar() async {
+    if (widget.userId <= 0) return;
+    try {
+      final user = await UserService.fetchUser(userId: widget.userId);
+      if (!mounted) return;
+      setState(() {
+        _userAvatarPath = user.avatarPath ?? '';
+        _userAvatarUrl = user.avatarUrl ?? '';
+      });
+      _applyAvatarToUserMessages();
+    } catch (_) {}
+  }
+
+  void _applyAvatarToUserMessages() {
+    for (var i = 0; i < _messages.length; i++) {
+      final m = _messages[i];
+      if (!m.isUser) continue;
+      _messages[i] = ChatMessage(
+        text: m.text,
+        isUser: true,
+        backgroundColor: m.backgroundColor,
+        textColor: m.textColor,
+        userAvatarPath: _userAvatarPath,
+        userAvatarUrl: _userAvatarUrl,
+      );
+    }
+  }
+
+  ChatMessage _userMessage(String text) => ChatMessage(
+        text: text,
+        isUser: true,
+        userAvatarPath: _userAvatarPath,
+        userAvatarUrl: _userAvatarUrl,
+      );
 
   String _buildChatKey(int userId, String userRole) {
     final normalizedRole =
@@ -86,10 +126,11 @@ class _ChatbotPageState extends State<ChatbotPage> {
     _applyTitleFromUserMessage(text);
     final userEntry = {'role': 'user', 'content': text};
 
+    final userMsg = _userMessage(text);
     setState(() {
-      _messages.add(ChatMessage(text: text, isUser: true));
+      _messages.add(userMsg);
       _chatHistory.add(userEntry);
-      _currentSession.messages.add(ChatMessage(text: text, isUser: true));
+      _currentSession.messages.add(userMsg);
       _currentSession.history.add(userEntry);
       _isLoading = true;
       _messageController.clear();
@@ -125,6 +166,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
           _upsertCurrentSession();
           _isLoading = false;
         });
+        SoundService.playSuccess();
         await _persistAll();
       }
     } catch (e) {
@@ -154,8 +196,20 @@ class _ChatbotPageState extends State<ChatbotPage> {
   }
 
   List<String> _splitBotResponse(String response) {
+    final parts = <String>[];
+    final sections = RegExp(
+      r'(?=MATERIALES|PASOS|DISPONIBLES EN PRODUCTOS|CONSEJOS)',
+      caseSensitive: false,
+    );
+    final chunks = response.split(sections);
+    for (final chunk in chunks) {
+      final trimmed = chunk.trim();
+      if (trimmed.isNotEmpty) parts.add(trimmed);
+    }
+    if (parts.isNotEmpty) return parts;
+
     return response
-        .split(RegExp(r'\s*(?:\r?\n){2}\s*|---'))
+        .split(RegExp(r'\s*(?:\r?\n){2}\s*'))
         .map((part) => part.trim())
         .where((part) => part.isNotEmpty)
         .toList();
@@ -163,21 +217,24 @@ class _ChatbotPageState extends State<ChatbotPage> {
 
   Color _botBubbleColorForSegment(String text, int segmentIndex) {
     final normalized = text.toUpperCase();
-    if (normalized.contains('MATERIALES') || segmentIndex == 0) {
-      return const Color(0xFF7A9E52);
+    if (normalized.contains('MATERIALES')) {
+      return const Color(0xFF6B8E4E);
     }
     if (normalized.contains('PASOS')) {
       return _brandGreen;
     }
-    if (normalized.contains('DISPONIBLES EN PRODUCTOS') ||
-        normalized.contains('CONSEJOS')) {
-      return const Color(0xFFDFF7D8);
+    if (normalized.contains('DISPONIBLES EN PRODUCTOS')) {
+      return const Color(0xFF4A90C2);
+    }
+    if (normalized.contains('CONSEJOS')) {
+      return const Color(0xFFE8A838);
     }
 
     final fallback = [
-      const Color(0xFFEAF3E8),
-      const Color(0xFFDFF0D8),
-      const Color(0xFFCFE5C8),
+      const Color(0xFF6B8E4E),
+      _brandGreen,
+      const Color(0xFF4A90C2),
+      const Color(0xFFE8A838),
     ];
     return fallback[segmentIndex % fallback.length];
   }
@@ -365,6 +422,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
               ..clear()
               ..addAll(restored.history);
           });
+          _applyAvatarToUserMessages();
           return;
         }
       } catch (_) {
@@ -373,6 +431,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
     }
 
     await _loadLegacyMessages(prefs);
+    _applyAvatarToUserMessages();
   }
 
   Future<void> _loadLegacyMessages(SharedPreferences prefs) async {
@@ -720,6 +779,8 @@ class ChatMessage extends StatelessWidget {
   final bool isUser;
   final Color? backgroundColor;
   final Color? textColor;
+  final String? userAvatarPath;
+  final String? userAvatarUrl;
 
   const ChatMessage({
     super.key,
@@ -727,6 +788,8 @@ class ChatMessage extends StatelessWidget {
     required this.isUser,
     this.backgroundColor,
     this.textColor,
+    this.userAvatarPath,
+    this.userAvatarUrl,
   });
 
   Map<String, dynamic> toJson() => {
@@ -750,8 +813,7 @@ class ChatMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FadeSlideEntry(
-      child: Padding(
+    return Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Row(
           mainAxisAlignment:
@@ -804,23 +866,14 @@ class ChatMessage extends StatelessWidget {
             ),
             if (isUser) ...[
               const SizedBox(width: 8),
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: const Icon(
-                  Icons.person,
-                  color: Colors.white,
-                  size: 20,
-                ),
+              buildUserAvatar(
+                avatarPath: userAvatarPath ?? '',
+                avatarUrl: userAvatarUrl ?? '',
+                size: 36,
               ),
             ],
           ],
         ),
-      ),
     );
   }
 }

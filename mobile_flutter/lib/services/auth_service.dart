@@ -1,26 +1,29 @@
-import 'package:http/http.dart' as http;
 import 'dart:convert';
+
+import 'package:http/http.dart' as http;
+
 import '../config/constants.dart';
 import '../models/index.dart';
+import 'network_status_service.dart';
+import 'server_config_service.dart';
 
 class AuthService {
   static String get baseUrl => getBaseUrl();
 
-  static String _connectionErrorMessage(Object error) {
-    final text = error.toString();
-    if (text.contains('TimeoutException') || text.contains('Connection timed out')) {
-      return 'No se pudo conectar al servidor (XAMPP). Abre el panel de XAMPP e inicia Apache y MySQL.';
+  static Future<String?> _prepareMobileConnection() async {
+    if (!await NetworkStatusService.hasWifi()) {
+      return NetworkStatusService.noWifiMessage;
     }
-    if (text.contains('Connection refused') || text.contains('Failed host lookup')) {
-      return 'No hay conexión con el servidor. En el móvil pon en .env la IP de tu PC (ej. http://192.168.1.10/q-less/) y activa Apache en XAMPP.';
+    final connected = await ServerConfigService.ensureConnectedOnMobile();
+    if (!connected) {
+      return NetworkStatusService.wifiNoServerMessage;
     }
-    return 'Error de conexión: $text';
+    return null;
   }
 
   static String _cleanResponseBody(String body) {
     if (body.isEmpty) return '{}';
     String cleaned = body.trim();
-    // Busca el inicio del JSON para descartar posibles errores de PHP o espacios
     int jsonStartIndex = cleaned.indexOf('{');
     if (jsonStartIndex != -1) {
       return cleaned.substring(jsonStartIndex);
@@ -34,12 +37,17 @@ class AuthService {
     required String password,
     String role = 'aprendiz',
   }) async {
+    final networkError = await _prepareMobileConnection();
+    if (networkError != null) {
+      return {'success': false, 'message': networkError, 'data': null};
+    }
+
     try {
-      final url = Uri.parse(apiUrl(baseUrl, 'register.php'));
-      
+      final url = Uri.parse(apiUrl(getBaseUrl(), 'register.php'));
+
       final response = await http.post(
         url,
-        headers: {
+        headers: const {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
@@ -47,26 +55,27 @@ class AuthService {
           'nombre': nombre.trim(),
           'correo': correo.trim(),
           'password': password,
-          'role': ['aprendiz', 'instructor'].contains(role.toLowerCase()) ? role.toLowerCase() : 'aprendiz',
+          'role': ['aprendiz', 'instructor'].contains(role.toLowerCase())
+              ? role.toLowerCase()
+              : 'aprendiz',
         }),
       ).timeout(
         apiTimeout,
-        onTimeout: () => throw Exception(
-          'El servidor no respondió. Verifica que Apache y MySQL estén activos en XAMPP.',
-        ),
+        onTimeout: () => throw Exception('timeout'),
       );
 
       final jsonResponse = jsonDecode(_cleanResponseBody(response.body));
 
       return {
-        'success': response.statusCode == 200 && jsonResponse['status'] == 'success',
+        'success':
+            response.statusCode == 200 && jsonResponse['status'] == 'success',
         'message': jsonResponse['message'] ?? 'Error en el servidor',
         'data': jsonResponse['data'],
       };
-    } catch (e) {
+    } catch (_) {
       return {
         'success': false,
-        'message': _connectionErrorMessage(e),
+        'message': NetworkStatusService.wifiNoServerMessage,
         'data': null,
       };
     }
@@ -76,24 +85,32 @@ class AuthService {
     required String correo,
     required String password,
   }) async {
+    final networkError = await _prepareMobileConnection();
+    if (networkError != null) {
+      return {
+        'success': false,
+        'message': networkError,
+        'user': null,
+      };
+    }
+
     try {
-      final url = Uri.parse(apiUrl(baseUrl, 'login.php'));
+      final url = Uri.parse(apiUrl(getBaseUrl(), 'login.php'));
 
       final response = await http.post(
         url,
-        headers: {
+        headers: const {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
         body: jsonEncode({
+          'email': correo.trim(),
           'correo': correo.trim(),
           'password': password,
         }),
       ).timeout(
         apiTimeout,
-        onTimeout: () => throw Exception(
-          'El servidor no respondió. Verifica que Apache y MySQL estén activos en XAMPP.',
-        ),
+        onTimeout: () => throw Exception('timeout'),
       );
 
       final jsonResponse = jsonDecode(_cleanResponseBody(response.body));
@@ -102,7 +119,9 @@ class AuthService {
         return {
           'success': true,
           'message': jsonResponse['message'],
-          'user': jsonResponse['user'] != null ? User.fromJson(jsonResponse['user']) : null,
+          'user': jsonResponse['user'] != null
+              ? User.fromJson(jsonResponse['user'])
+              : null,
         };
       } else {
         return {
@@ -111,10 +130,10 @@ class AuthService {
           'user': null,
         };
       }
-    } catch (e) {
+    } catch (_) {
       return {
         'success': false,
-        'message': _connectionErrorMessage(e),
+        'message': NetworkStatusService.wifiNoServerMessage,
         'user': null,
       };
     }

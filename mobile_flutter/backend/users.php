@@ -13,21 +13,7 @@ function send_json($statusCode, $payload) {
     exit();
 }
 
-// Asegurar esquema de usuario
-function setup_user_schema($conn) {
-    $conn->query("CREATE TABLE IF NOT EXISTS users (
-        id INT PRIMARY KEY AUTO_INCREMENT,
-        name VARCHAR(100) NOT NULL,
-        email VARCHAR(100) NOT NULL UNIQUE,
-        password VARCHAR(255) NOT NULL,
-        role ENUM('aprendiz', 'instructor', 'admin') NOT NULL DEFAULT 'aprendiz',
-        avatar_path VARCHAR(255) NULL,
-        description TEXT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-}
-setup_user_schema($conn);
+ensure_users_table($conn);
 
 function format_user_response(array $user): array
 {

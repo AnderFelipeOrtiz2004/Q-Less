@@ -7,12 +7,14 @@ import '../models/product.dart';
 import '../services/carrito_service.dart';
 import '../services/product_service.dart';
 import '../services/user_service.dart';
+import '../services/favorites_service.dart';
 import '../services/sound_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/image_utils.dart';
 import '../utils/transition_utils.dart';
-import '../widgets/staggered_fade_in.dart';
+import '../widgets/quantity_input.dart';
 import 'admin_purchases_page.dart';
+import 'favorites_page.dart';
 import 'cart_page.dart';
 import 'chatbot_page.dart';
 import 'my_purchases_page.dart';
@@ -46,15 +48,16 @@ class _HomePageState extends State<HomePage> {
   List<CartItem> _cartItems = [];
   String _displayName = 'Usuario';
   Timer? _bannerTimer;
-  Timer? _stockRefreshTimer;
   final PageController _bannerController = PageController();
   final Map<int, Timer> _reservationTimers = {};
 
   final TextEditingController _searchController = TextEditingController();
   bool _searchActive = false;
   bool _isLoading = true;
+  bool _initialLoadDone = false;
   String _errorMessage = '';
   int _bannerIndex = 0;
+  Set<int> _favoriteIds = {};
 
   bool get _isAdmin => widget.userRole.toLowerCase() == 'admin';
 
@@ -64,8 +67,43 @@ class _HomePageState extends State<HomePage> {
     _displayName = widget.userName ?? 'Usuario';
     _loadProducts();
     _loadCartFromServer();
+    _loadFavoriteIds();
     _startBannerTimer();
-    _startStockRefresh();
+  }
+
+  int get _uid => widget.userId ?? 0;
+
+  Future<void> _loadFavoriteIds() async {
+    if (_uid <= 0) return;
+    final ids = await FavoritesService.getFavoriteIds(userId: _uid);
+    if (mounted) setState(() => _favoriteIds = ids);
+  }
+
+  Future<void> _toggleFavorite(Product product) async {
+    if (_uid <= 0) return;
+    SoundService.playClick();
+    final nowFav = await FavoritesService.toggleFavorite(
+      userId: _uid,
+      productId: product.id,
+    );
+    if (!mounted) return;
+    setState(() {
+      if (nowFav) {
+        _favoriteIds.add(product.id);
+      } else {
+        _favoriteIds.remove(product.id);
+      }
+    });
+  }
+
+  void _showOutOfStockMessage(String productName) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Ya no hay stock de "$productName".'),
+        backgroundColor: Colors.red[700],
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _loadCartFromServer() async {
@@ -130,7 +168,6 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _bannerTimer?.cancel();
-    _stockRefreshTimer?.cancel();
     _bannerController.dispose();
     _searchController.dispose();
     for (final t in _reservationTimers.values) {
@@ -145,14 +182,6 @@ class _HomePageState extends State<HomePage> {
       if (!mounted || _bannerProducts.length < 2) return;
       final nextIndex = (_bannerIndex + 1) % _bannerProducts.length;
       _goToBanner(nextIndex);
-    });
-  }
-
-  void _startStockRefresh() {
-    _stockRefreshTimer?.cancel();
-    _stockRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (!mounted) return;
-      _loadProducts(silent: true);
     });
   }
 
@@ -196,34 +225,22 @@ class _HomePageState extends State<HomePage> {
     try {
       final loadedProducts = await ProductService.fetchProducts();
       if (!mounted) return;
+
+      if (silent && _initialLoadDone) {
+        _applyProductUpdateQuietly(loadedProducts);
+        return;
+      }
+
       setState(() {
         products = loadedProducts;
-        if (_bannerProducts.isEmpty || !silent) {
-          _bannerProducts = _selectBannerProducts(loadedProducts);
-          _bannerIndex = 0;
-        } else {
-          _bannerProducts = _bannerProducts
-              .map((bannerProduct) => loadedProducts.firstWhere(
-                    (product) => product.id == bannerProduct.id,
-                    orElse: () => bannerProduct,
-                  ))
-              .toList();
-        }
-        _cartItems = _cartItems.map((cartItem) {
-          final freshProduct = loadedProducts.firstWhere(
-            (product) => product.id == cartItem.product.id,
-            orElse: () => cartItem.product,
-          );
-          return CartItem(
-            product: freshProduct,
-            quantity: cartItem.quantity,
-            reservationId: cartItem.reservationId,
-            reservationExpiresAt: cartItem.reservationExpiresAt,
-          );
-        }).toList();
+        _bannerProducts = _selectBannerProducts(loadedProducts);
+        _bannerIndex = 0;
+        _mergeCartWithProducts(loadedProducts);
         _errorMessage = '';
+        _isLoading = false;
+        _initialLoadDone = true;
       });
-      if (!silent && _bannerController.hasClients) {
+      if (_bannerController.hasClients) {
         _bannerController.jumpToPage(0);
       }
     } catch (e) {
@@ -231,15 +248,56 @@ class _HomePageState extends State<HomePage> {
       if (!silent) {
         setState(() {
           _errorMessage = 'No se pudieron cargar los productos: $e';
-        });
-      }
-    } finally {
-      if (mounted && !silent) {
-        setState(() {
           _isLoading = false;
         });
       }
     }
+  }
+
+  void _applyProductUpdateQuietly(List<Product> loadedProducts) {
+    var changed = false;
+    final byId = {for (final p in loadedProducts) p.id: p};
+
+    for (var i = 0; i < products.length; i++) {
+      final fresh = byId[products[i].id];
+      if (fresh == null) continue;
+      if (fresh.availableStock != products[i].availableStock ||
+          fresh.stock != products[i].stock ||
+          fresh.precio != products[i].precio) {
+        products[i] = fresh;
+        changed = true;
+      }
+    }
+
+    for (var i = 0; i < _cartItems.length; i++) {
+      final fresh = byId[_cartItems[i].product.id];
+      if (fresh != null && fresh.id == _cartItems[i].product.id) {
+        _cartItems[i] = CartItem(
+          product: fresh,
+          quantity: _cartItems[i].quantity,
+          reservationId: _cartItems[i].reservationId,
+          reservationExpiresAt: _cartItems[i].reservationExpiresAt,
+        );
+        changed = true;
+      }
+    }
+
+    if (changed) setState(() {});
+  }
+
+  void _mergeCartWithProducts(List<Product> loadedProducts) {
+    _cartItems = _cartItems.map((cartItem) {
+      final freshProduct = loadedProducts.firstWhere(
+        (product) => product.id == cartItem.product.id,
+        orElse: () => cartItem.product,
+      );
+      return CartItem(
+        product: freshProduct,
+        quantity: cartItem.quantity,
+        reservationId: cartItem.reservationId,
+        reservationExpiresAt: cartItem.reservationExpiresAt,
+      );
+    }).toList();
   }
 
   List<Product> get _filteredProducts {
@@ -258,7 +316,8 @@ class _HomePageState extends State<HomePage> {
     await Navigator.of(context).push(fadeSlideRoute(page));
 
     if (refreshOnReturn) {
-      _loadProducts();
+      _loadProducts(silent: true);
+      _loadFavoriteIds();
     }
   }
 
@@ -361,7 +420,7 @@ class _HomePageState extends State<HomePage> {
             ),
           );
           _reservationTimers.remove(rid);
-          _loadProducts();
+          _loadProducts(silent: true);
         });
 
         if (rid > 0) _reservationTimers[rid] = timer;
@@ -387,7 +446,7 @@ class _HomePageState extends State<HomePage> {
           );
         }
 
-        _loadProducts();
+        _loadProducts(silent: true);
       } else {
         final message = resp['message'] ?? 'No se pudo reservar';
         ScaffoldMessenger.of(context).showSnackBar(
@@ -413,12 +472,11 @@ class _HomePageState extends State<HomePage> {
             setState(() {
               _cartItems = items;
             });
-            _loadProducts();
+            _loadProducts(silent: true);
           },
-          onContinueShopping: _loadProducts,
+          onContinueShopping: () => _loadProducts(silent: true),
           onPurchaseComplete: () {
-            // Recargar productos después de compra
-            _loadProducts();
+            _loadProducts(silent: true);
             // Ir a Mis Compras
             Navigator.of(context).push(
               fadeSlideRoute(
@@ -435,6 +493,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showBuyDialog(Product product) {
+    if (product.availableStock <= 0) {
+      _showOutOfStockMessage(product.nombre);
+      return;
+    }
     int qty = 1;
     showModalBottomSheet(
       context: context,
@@ -453,22 +515,15 @@ class _HomePageState extends State<HomePage> {
                     style: const TextStyle(
                         fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: qty > 1 ? () => setState(() => qty--) : null,
-                      icon: const Icon(Icons.remove_circle_outline),
-                    ),
-                    Text('$qty', style: const TextStyle(fontSize: 18)),
-                    IconButton(
-                      onPressed: qty < product.availableStock
-                          ? () => setState(() => qty++)
-                          : null,
-                      icon: const Icon(Icons.add_circle_outline),
-                    ),
-                    const Spacer(),
-                    Text('Total: \$${product.precio * qty}'),
-                  ],
+                QuantityInput(
+                  value: qty,
+                  max: product.availableStock,
+                  onChanged: (v) => setState(() => qty = v),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text('Total: \$${product.precio * qty}'),
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
@@ -534,9 +589,10 @@ class _HomePageState extends State<HomePage> {
                       SliverList.builder(
                         itemCount: visibleProducts.length,
                         itemBuilder: (context, index) {
-                          return StaggeredFadeIn(
-                            index: index,
-                            child: _buildProductCard(visibleProducts[index]),
+                          final product = visibleProducts[index];
+                          return KeyedSubtree(
+                            key: ValueKey<int>(product.id),
+                            child: _buildProductCard(product),
                           );
                         },
                       ),
@@ -682,6 +738,20 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
           _buildNavIcon(
+            icon: Icons.favorite_outline,
+            label: 'Favoritos',
+            onTap: () async {
+              await _navigateTo(
+                FavoritesPage(
+                  userId: widget.userId ?? 1,
+                  userRole: widget.userRole,
+                  onAddToCart: _addToCart,
+                ),
+              );
+              _loadFavoriteIds();
+            },
+          ),
+          _buildNavIcon(
             icon: Icons.chat_outlined,
             label: 'Chat',
             onTap: () => _navigateTo(
@@ -720,7 +790,10 @@ class _HomePageState extends State<HomePage> {
     return Tooltip(
       message: label,
       child: IconButton(
-        onPressed: onTap,
+        onPressed: () {
+          SoundService.playClick();
+          onTap();
+        },
         icon: Icon(icon, color: Colors.white, size: 27),
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(minWidth: 44, minHeight: 40),
@@ -988,14 +1061,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildProductCard(Product product) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
+    final outOfStock = product.availableStock <= 0;
+    final isFavorite = _favoriteIds.contains(product.id);
+
+    return Container(
       margin: const EdgeInsets.fromLTRB(8, 0, 8, 18),
       padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        boxShadow: product.availableStock > 0
+        boxShadow: !outOfStock
             ? const [
                 BoxShadow(
                   color: Colors.black12,
@@ -1006,9 +1080,7 @@ class _HomePageState extends State<HomePage> {
             : [],
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: product.availableStock <= 3
-              ? const Color(0xFFFFA726)
-              : const Color(0xFFEAEAEA),
+          color: const Color(0xFFEAEAEA),
           width: 1.2,
         ),
       ),
@@ -1020,11 +1092,41 @@ class _HomePageState extends State<HomePage> {
             userRole: widget.userRole,
             onAddToCart: _addToCart,
           ),
-        ),
+        ).then((_) => _loadFavoriteIds()),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
+            if (outOfStock)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red[200]!),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red[700], size: 22),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Ya no hay stock de este producto',
+                        style: TextStyle(
+                          color: Colors.red[800],
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Center(
               child: Container(
                 width: 166,
                 height: 154,
@@ -1047,6 +1149,20 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
+            ),
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _toggleFavorite(product),
+                    icon: Icon(
+                      isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: isFavorite ? Colors.red : Colors.grey,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 14),
             Text(
@@ -1117,7 +1233,9 @@ class _HomePageState extends State<HomePage> {
                   ),
                   backgroundColor: _brandGreen,
                   child: IconButton(
-                    onPressed: () => _showBuyDialog(product),
+                    onPressed: outOfStock
+                        ? () => _showOutOfStockMessage(product.nombre)
+                        : () => _showBuyDialog(product),
                     icon: const Icon(Icons.shopping_cart_outlined),
                     color: _brandGreen,
                     iconSize: 20,
