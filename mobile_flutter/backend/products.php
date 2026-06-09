@@ -153,7 +153,8 @@ if ($method === 'GET') {
         $user_id = isset($row['user_id']) && $row['user_id'] !== null ? intval($row['user_id']) : null;
         $reserved = isset($row['reserved']) ? intval($row['reserved']) : 0;
 
-        $available = max(0, $stock - $reserved);
+        // El stock en BD ya refleja las reservas activas del carrito.
+        $available = max(0, $stock);
         $image_url = resolve_image_url($image_path);
 
         $products[] = [

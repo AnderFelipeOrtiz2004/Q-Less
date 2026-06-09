@@ -210,7 +210,7 @@ function call_gemini_api(string $apiKey, string $systemPrompt): ?string
 function sanitize_chatbot_response(string $text): string
 {
     $lines = preg_split("/\r\n|\r|\n/", $text);
-    $blocked = '/gemini|modo local|sin ia|inteligencia artificial|cuota de|api de ia|usar ia|verifica.*\bia\b/i';
+    $blocked = '/gemini|modo local|inteligencia artificial|cuota de|api de|proveedor|asistente virtual/i';
     $cleaned = [];
     foreach ($lines as $line) {
         if (!preg_match($blocked, $line)) {

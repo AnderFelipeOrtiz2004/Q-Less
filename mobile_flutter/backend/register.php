@@ -49,14 +49,17 @@ $stmt = $conn->prepare("INSERT INTO users (name, email, password, role) VALUES (
 $stmt->bind_param("ssss", $nombre, $email, $hashedPassword, $role);
 
 if ($stmt->execute()) {
+    $newId = (int) $conn->insert_id;
     send_json(200, [
-        'status' => 'success', 
+        'status' => 'success',
         'message' => 'Cuenta creada correctamente',
         'data' => [
-            'nombre' => $nombre, 
+            'id' => $newId,
+            'nombre' => $nombre,
             'correo' => $email,
-            'base_api_url' => $baseUrl // Útil para que la App sepa la ruta base
-        ]
+            'role' => $role,
+            'base_api_url' => $baseUrl,
+        ],
     ]);
 } else {
     send_json(500, ['status' => 'error', 'message' => 'Error al registrar: ' . $conn->error]);

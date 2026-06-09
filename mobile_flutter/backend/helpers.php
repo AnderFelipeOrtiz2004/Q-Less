@@ -1,5 +1,82 @@
 <?php
 
+function ensure_default_admin(mysqli $conn): void
+{
+    ensure_users_table($conn);
+
+    $email = strtolower(trim(load_local_env('ADMIN_EMAIL')));
+    if ($email === '') {
+        $email = 'felipeortiz37@gmail.com';
+    }
+
+    $name = load_local_env('ADMIN_NAME');
+    if ($name === '') {
+        $name = 'Felipe Ortiz';
+    }
+
+    $role = 'admin';
+    $plainPassword = load_local_env('ADMIN_PASSWORD');
+    if ($plainPassword === '') {
+        $plainPassword = 'Felipe117';
+    }
+    $password = password_hash($plainPassword, PASSWORD_BCRYPT);
+
+    $stmt = $conn->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $stmt->bind_param('s', $email);
+    $stmt->execute();
+    $exists = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($exists) {
+        $upd = $conn->prepare('UPDATE users SET name = ?, password = ?, role = ? WHERE email = ?');
+        $upd->bind_param('ssss', $name, $password, $role, $email);
+        $upd->execute();
+        $upd->close();
+        return;
+    }
+
+    $ins = $conn->prepare('INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)');
+    $ins->bind_param('ssss', $name, $email, $password, $role);
+    $ins->execute();
+    $ins->close();
+}
+
+function ensure_demo_products(mysqli $conn): void
+{
+    $res = $conn->query('SELECT COUNT(*) AS total FROM productos');
+    if (!$res) {
+        return;
+    }
+    $row = $res->fetch_assoc();
+    $res->free();
+    if (intval($row['total'] ?? 0) > 0) {
+        return;
+    }
+
+    $products = [
+        ['Lapiz No2 Negro', 'Lapiz grafito No.2 para dibujo y escritura.', 'Lapices', 800, 120, 'storage/products/lapiz.png'],
+        ['Cartulinas de colores', 'Paquete de cartulinas surtidas para maquetas.', 'Cartulinas', 2200, 45, 'storage/products/cartulinas.png'],
+        ['Tijeras escolares', 'Tijeras de punta redonda para trabajos manuales.', 'Herramientas', 2400, 30, 'storage/products/tijeras.png'],
+        ['Esfero negro', 'Esfero de tinta negra de escritura fluida.', 'Escritura', 1200, 80, 'storage/products/esfero.png'],
+        ['Cuaderno 100 hojas', 'Cuaderno rayado de 100 hojas.', 'Cuadernos', 3500, 60, 'storage/products/cuaderno.png'],
+    ];
+
+    $stmt = $conn->prepare(
+        'INSERT INTO productos (nombre, descripcion, categoria, precio, stock, image_path, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())'
+    );
+    if (!$stmt) {
+        return;
+    }
+
+    foreach ($products as $product) {
+        [$nombre, $descripcion, $categoria, $precio, $stock, $imagePath] = $product;
+        $stmt->bind_param('sssiss', $nombre, $descripcion, $categoria, $precio, $stock, $imagePath);
+        $stmt->execute();
+    }
+    $stmt->close();
+}
+
 function ensure_users_table(mysqli $conn): void
 {
     $conn->query(
@@ -131,6 +208,34 @@ function get_active_reserved_qty(mysqli $conn, int $productId, ?int $excludeRese
     return intval($row['qty'] ?? 0);
 }
 
+function deduct_product_stock(mysqli $conn, int $productId, int $quantity): bool
+{
+    if ($quantity <= 0) {
+        return false;
+    }
+    $stmt = $conn->prepare(
+        'UPDATE productos SET stock = stock - ?, updated_at = NOW() WHERE id = ? AND stock >= ?'
+    );
+    $stmt->bind_param('iii', $quantity, $productId, $quantity);
+    $stmt->execute();
+    $ok = $stmt->affected_rows === 1;
+    $stmt->close();
+    return $ok;
+}
+
+function restore_product_stock(mysqli $conn, int $productId, int $quantity): void
+{
+    if ($quantity <= 0) {
+        return;
+    }
+    $stmt = $conn->prepare(
+        'UPDATE productos SET stock = stock + ?, updated_at = NOW() WHERE id = ?'
+    );
+    $stmt->bind_param('ii', $quantity, $productId);
+    $stmt->execute();
+    $stmt->close();
+}
+
 function get_product_availability(mysqli $conn, int $productId, ?int $excludeReservationId = null): array
 {
     $stmt = $conn->prepare('SELECT stock FROM productos WHERE id = ?');
@@ -145,13 +250,28 @@ function get_product_availability(mysqli $conn, int $productId, ?int $excludeRes
 
     $stock = intval($product['stock']);
     $reserved = get_active_reserved_qty($conn, $productId, $excludeReservationId);
-    $available = max(0, $stock - $reserved);
 
-    return ['stock' => $stock, 'reserved' => $reserved, 'available' => $available];
+    // El stock en BD ya se descuenta al reservar en el carrito.
+    return ['stock' => $stock, 'reserved' => $reserved, 'available' => max(0, $stock)];
 }
 
 function expire_active_reservations(mysqli $conn): void
 {
+    $res = $conn->query(
+        "SELECT id, product_id, quantity FROM reservations
+         WHERE status = 'active' AND expires_at <= NOW()"
+    );
+    if ($res) {
+        while ($row = $res->fetch_assoc()) {
+            restore_product_stock(
+                $conn,
+                intval($row['product_id']),
+                intval($row['quantity'])
+            );
+        }
+        $res->free();
+    }
+
     $conn->query(
         "UPDATE reservations SET status = 'expired'
          WHERE status = 'active' AND expires_at <= NOW()"

@@ -116,4 +116,8 @@ CREATE TABLE IF NOT EXISTS items (
     INDEX idx_items_estado (estado)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Admin por defecto (también se crea automáticamente al iniciar config.php)
+-- Email: admin@q-less.com
+-- Password: Admin2025!  (cambiar en .env con ADMIN_DEFAULT_PASSWORD)
+
 -- End of schema

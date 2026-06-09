@@ -33,20 +33,36 @@ if ($method === 'POST' && $action === 'create') {
         send_json(400, ['status' => 'error', 'message' => 'Datos de compra inválidos']);
     }
 
+    $conn->begin_transaction();
     try {
         if ($reservationId > 0) {
+            $dup = $conn->prepare(
+                "SELECT id FROM ordenes WHERE reservation_id = ? AND status = 'pendiente' LIMIT 1"
+            );
+            $dup->bind_param('i', $reservationId);
+            $dup->execute();
+            $existingOrder = $dup->get_result()->fetch_assoc();
+            $dup->close();
+            if ($existingOrder) {
+                throw new Exception('Esta reserva ya tiene una solicitud pendiente');
+            }
+
             $stmt = $conn->prepare(
-                "SELECT user_id, product_id, quantity, status, expires_at FROM reservations WHERE id = ?"
+                "SELECT user_id, product_id, quantity, status, expires_at
+                 FROM reservations WHERE id = ? FOR UPDATE"
             );
             $stmt->bind_param('i', $reservationId);
             $stmt->execute();
             $res = $stmt->get_result()->fetch_assoc();
             $stmt->close();
             if (!$res || $res['status'] !== 'active' || strtotime($res['expires_at']) <= time()) {
-                send_json(400, ['status' => 'error', 'message' => 'Reserva inválida o expirada']);
+                throw new Exception('Reserva inválida o expirada');
             }
             if (intval($res['user_id']) !== $userId || intval($res['product_id']) !== $productId) {
-                send_json(400, ['status' => 'error', 'message' => 'La reserva no coincide con el producto']);
+                throw new Exception('La reserva no coincide con el producto');
+            }
+            if (intval($res['quantity']) !== $quantity) {
+                throw new Exception('La cantidad no coincide con la reserva del carrito');
             }
         }
 
@@ -57,16 +73,17 @@ if ($method === 'POST' && $action === 'create') {
         $stmt->close();
 
         if (!$prod) {
-            send_json(404, ['status' => 'error', 'message' => 'Producto no encontrado']);
+            throw new Exception('Producto no encontrado');
         }
 
-        $excludeReservation = $reservationId > 0 ? $reservationId : null;
-        $availability = get_product_availability($conn, $productId, $excludeReservation);
-        if ($availability['available'] < $quantity) {
-            send_json(400, [
-                'status' => 'error',
-                'message' => 'Stock insuficiente. Disponibles: ' . $availability['available'],
-            ]);
+        if ($reservationId <= 0) {
+            $availability = get_product_availability($conn, $productId);
+            if ($availability['available'] < $quantity) {
+                throw new Exception('Stock insuficiente. Disponibles: ' . $availability['available']);
+            }
+            if (!deduct_product_stock($conn, $productId, $quantity)) {
+                throw new Exception('No se pudo reservar stock para la compra');
+            }
         }
 
         $total = intval($prod['precio']) * $quantity;
@@ -89,17 +106,33 @@ if ($method === 'POST' && $action === 'create') {
             $status,
             $prod['image_path']
         );
-        $ins->execute();
+        if (!$ins->execute()) {
+            throw new Exception('No se pudo registrar la solicitud de compra');
+        }
         $orderId = $ins->insert_id;
         $ins->close();
 
+        if ($reservationId > 0) {
+            $lockRes = $conn->prepare(
+                "UPDATE reservations SET status = 'pending_approval' WHERE id = ? AND status = 'active'"
+            );
+            $lockRes->bind_param('i', $reservationId);
+            $lockRes->execute();
+            if ($lockRes->affected_rows !== 1) {
+                throw new Exception('No se pudo bloquear la reserva del carrito');
+            }
+            $lockRes->close();
+        }
+
+        $conn->commit();
         send_json(200, [
             'status' => 'success',
             'message' => 'Solicitud enviada. Un administrador revisará tu compra.',
             'data' => ['order_id' => $orderId, 'order_status' => $status],
         ]);
     } catch (Throwable $e) {
-        send_json(500, ['status' => 'error', 'message' => $e->getMessage()]);
+        $conn->rollback();
+        send_json(409, ['status' => 'error', 'message' => $e->getMessage()]);
     }
 }
 
@@ -133,27 +166,14 @@ if ($method === 'POST' && $action === 'approve') {
         $quantity = intval($order['quantity']);
         $reservationId = intval($order['reservation_id'] ?? 0);
 
-        $availability = get_product_availability(
-            $conn,
-            $productId,
-            $reservationId > 0 ? $reservationId : null
-        );
-        if ($availability['available'] < $quantity) {
-            throw new Exception('Stock insuficiente al aprobar');
-        }
-
-        $deduct = $conn->prepare(
-            'UPDATE productos SET stock = stock - ?, updated_at = NOW() WHERE id = ? AND stock >= ?'
-        );
-        $deduct->bind_param('iii', $quantity, $productId, $quantity);
-        $deduct->execute();
-        if ($deduct->affected_rows !== 1) {
-            throw new Exception('No se pudo descontar el stock');
-        }
-        $deduct->close();
-
+        // El stock ya se descontó al reservar en carrito o al crear la orden sin reserva.
         if ($reservationId > 0) {
-            $conn->query("UPDATE reservations SET status = 'confirmed' WHERE id = $reservationId");
+            $resStmt = $conn->prepare(
+                "UPDATE reservations SET status = 'confirmed' WHERE id = ? AND status IN ('active', 'pending_approval')"
+            );
+            $resStmt->bind_param('i', $reservationId);
+            $resStmt->execute();
+            $resStmt->close();
         }
 
         $upd = $conn->prepare("UPDATE ordenes SET status = 'aprobada', updated_at = NOW() WHERE id = ?");
@@ -194,9 +214,19 @@ if ($method === 'POST' && $action === 'reject') {
             send_json(400, ['status' => 'error', 'message' => 'Esta orden ya fue procesada']);
         }
 
+        $productId = intval($order['product_id']);
+        $quantity = intval($order['quantity']);
         $reservationId = intval($order['reservation_id'] ?? 0);
+
+        restore_product_stock($conn, $productId, $quantity);
+
         if ($reservationId > 0) {
-            $conn->query("UPDATE reservations SET status = 'cancelled' WHERE id = $reservationId");
+            $resStmt = $conn->prepare(
+                "UPDATE reservations SET status = 'cancelled' WHERE id = ? AND status IN ('active', 'pending_approval')"
+            );
+            $resStmt->bind_param('i', $reservationId);
+            $resStmt->execute();
+            $resStmt->close();
         }
 
         $upd = $conn->prepare("UPDATE ordenes SET status = 'rechazada', updated_at = NOW() WHERE id = ?");

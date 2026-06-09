@@ -19,6 +19,6 @@ echo json_encode([
     'status' => $checks['mysql'] ? 'success' : 'error',
     'message' => $checks['mysql']
         ? 'Backend listo'
-        : 'MySQL no responde. Inicia MySQL en el panel de XAMPP.',
+        : 'MySQL no responde. Revisa credenciales en .env o el servicio de base de datos.',
     'checks' => $checks,
 ]);

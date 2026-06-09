@@ -68,17 +68,20 @@ if ($method === 'GET') {
     $items = [];
     while ($row = $result->fetch_assoc()) {
         $imagePath = $row['image_path'] ?? '';
+        $qty = (int) $row['quantity'];
+        $stockLeft = (int) $row['stock'];
         $items[] = [
             'reservation_id' => (int) $row['reservation_id'],
             'product_id' => (int) $row['product_id'],
-            'quantity' => (int) $row['quantity'],
+            'quantity' => $qty,
             'expires_at' => $row['expires_at'],
             'reserved_at' => $row['reserved_at'],
             'nombre' => $row['nombre'],
             'descripcion' => $row['descripcion'],
             'categoria' => $row['categoria'],
             'precio' => (int) $row['precio'],
-            'stock' => (int) $row['stock'],
+            'stock' => $stockLeft,
+            'available_stock' => $stockLeft + $qty,
             'image_path' => $imagePath,
             'image_url' => resolve_image_url($imagePath),
         ];
@@ -100,17 +103,12 @@ if ($method === 'POST' && $action === 'create') {
     $conn->begin_transaction();
     try {
         $availability = get_product_availability($conn, $productId);
-        if ($availability['stock'] <= 0 && $availability['available'] <= 0) {
-            $conn->rollback();
-            send_json(404, ['status' => 'error', 'message' => 'Producto no encontrado']);
+        if ($availability['available'] < $quantity) {
+            throw new Exception('Stock insuficiente. Disponibles: ' . $availability['available']);
         }
 
-        if ($availability['available'] < $quantity) {
-            $conn->rollback();
-            send_json(409, [
-                'status' => 'error',
-                'message' => 'Stock insuficiente. Disponibles: ' . $availability['available'],
-            ]);
+        if (!deduct_product_stock($conn, $productId, $quantity)) {
+            throw new Exception('No se pudo reservar stock del producto');
         }
 
         $expiresSql = date('Y-m-d H:i:s', strtotime('+24 hours'));
@@ -140,6 +138,7 @@ if ($method === 'POST' && $action === 'create') {
                 'available_stock' => $after['available'],
                 'stock' => $after['stock'],
                 'reserved' => $after['reserved'],
+                'quantity' => $quantity,
             ],
         ]);
     } catch (Exception $e) {
@@ -169,6 +168,12 @@ if ($method === 'POST' && $action === 'release') {
             $conn->rollback();
             send_json(404, ['status' => 'error', 'message' => 'Reserva no encontrada o ya gestionada']);
         }
+
+        restore_product_stock(
+            $conn,
+            intval($reservation['product_id']),
+            intval($reservation['quantity'])
+        );
 
         $updateReservation = $conn->prepare("UPDATE reservations SET status = 'cancelled' WHERE id = ?");
         $updateReservation->bind_param("i", $reservationId);
@@ -215,10 +220,15 @@ if ($method === 'POST' && $action === 'update') {
         $delta = $newQuantity - $oldQuantity;
 
         if ($delta > 0) {
-            $availability = get_product_availability($conn, $productId, $reservationId);
+            $availability = get_product_availability($conn, $productId);
             if ($availability['available'] < $delta) {
                 throw new Exception('Stock insuficiente. Disponibles: ' . $availability['available']);
             }
+            if (!deduct_product_stock($conn, $productId, $delta)) {
+                throw new Exception('No se pudo actualizar el stock reservado');
+            }
+        } elseif ($delta < 0) {
+            restore_product_stock($conn, $productId, abs($delta));
         }
 
         $expiresSql = date('Y-m-d H:i:s', strtotime('+24 hours'));
@@ -239,7 +249,8 @@ if ($method === 'POST' && $action === 'update') {
                 'reservation_id' => $reservationId,
                 'quantity' => $newQuantity,
                 'expires_at' => $expiresSql,
-                'available_stock' => $after['available'],
+                'available_stock' => $after['available'] + $newQuantity,
+                'stock' => $after['available'],
             ],
         ]);
     } catch (Exception $e) {

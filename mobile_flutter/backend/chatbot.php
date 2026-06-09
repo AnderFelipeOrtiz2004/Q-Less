@@ -97,7 +97,7 @@ try {
             . "DISPONIBLES EN PRODUCTOS\n- Solo menciona productos del inventario con stock que sirvan para el proyecto.\n\n"
             . "CONSEJOS\n- 2 o 3 recomendaciones cortas.\n\n"
             . "No uses Markdown con asteriscos, tablas ni encabezados con #."
-            . "\nNo menciones IA, Gemini, APIs ni el tipo de asistente que eres.";
+            . "\nResponde como guía escolar de Q-LESS, sin mencionar proveedores ni tecnología interna.";
 
         $geminiText = call_gemini_api($apiKey, $systemPrompt);
         if ($geminiText !== null) {
