@@ -99,7 +99,23 @@ function ensure_users_table(mysqli $conn): void
     );
 
     ensure_users_role_column($conn);
+    ensure_users_profile_columns($conn);
     migrate_legacy_usuarios_table($conn);
+}
+
+function ensure_users_profile_columns(mysqli $conn): void
+{
+    $columns = [
+        'avatar_path' => 'VARCHAR(255) NULL',
+        'description' => 'TEXT NULL',
+    ];
+
+    foreach ($columns as $column => $definition) {
+        $res = $conn->query("SHOW COLUMNS FROM users LIKE '$column'");
+        if ($res && $res->num_rows === 0) {
+            @$conn->query("ALTER TABLE users ADD COLUMN $column $definition");
+        }
+    }
 }
 
 function ensure_users_role_column(mysqli $conn): void
