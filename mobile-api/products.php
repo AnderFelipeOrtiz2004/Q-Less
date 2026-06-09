@@ -118,10 +118,24 @@ if ($method === 'GET') {
     repair_legacy_reserved_stock($conn);
     expire_active_reservations($conn);
 
-    // Include active reservations per product so we can compute available stock
-    $query = "SELECT p.id, p.nombre, p.descripcion, p.categoria, p.precio, p.stock, p.image_path, p.user_id, p.created_at, p.updated_at, COALESCE(SUM(r.quantity),0) AS reserved " .
-             "FROM productos p LEFT JOIN reservations r ON r.product_id = p.id AND r.status = 'active' " .
-             "GROUP BY p.id ORDER BY p.updated_at DESC, p.id DESC";
+    $webReservedExpr = cart_reservations_table_exists($conn)
+        ? "(SELECT COALESCE(SUM(cr.cantidad), 0) FROM cart_reservations cr
+            WHERE cr.producto_id = p.id AND cr.status = 'active' AND cr.expires_at > NOW()
+            AND NOT EXISTS (
+                SELECT 1 FROM reservations r2
+                WHERE r2.user_id = cr.user_id AND r2.product_id = cr.producto_id
+                AND r2.status = 'active' AND r2.expires_at > NOW()
+            ))"
+        : '0';
+
+    $query = "SELECT p.id, p.nombre, p.descripcion, p.categoria, p.precio, p.stock, p.image_path, p.user_id, p.created_at, p.updated_at,
+              (
+                (SELECT COALESCE(SUM(r.quantity), 0) FROM reservations r
+                 WHERE r.product_id = p.id AND r.status = 'active' AND r.expires_at > NOW())
+                + $webReservedExpr
+              ) AS reserved
+              FROM productos p
+              ORDER BY p.updated_at DESC, p.id DESC";
 
     $stmt = $conn->prepare($query);
     if (!$stmt) {

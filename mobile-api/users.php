@@ -38,7 +38,12 @@ if ($method === 'GET') {
     $userId = intval($_GET['id'] ?? 0);
     if ($userId <= 0) send_json(400, ['status' => 'error', 'message' => 'ID de usuario requerido']);
 
-    $stmt = $conn->prepare("SELECT id, name, email, role, avatar_path, description, created_at FROM users WHERE id = ?");
+    $stmt = $conn->prepare(
+        "SELECT id, name, email,
+                COALESCE(NULLIF(role, ''), NULLIF(rol, ''), 'aprendiz') AS role,
+                avatar_path, description, created_at
+         FROM users WHERE id = ?"
+    );
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     $user = $stmt->get_result()->fetch_assoc();
@@ -138,7 +143,12 @@ function update_user_profile(mysqli $conn, array $input): void
 
     if ($stmt->execute()) {
         $stmt->close();
-        $fetch = $conn->prepare('SELECT id, name, email, role, avatar_path, description, created_at FROM users WHERE id = ?');
+        $fetch = $conn->prepare(
+            "SELECT id, name, email,
+                    COALESCE(NULLIF(role, ''), NULLIF(rol, ''), 'aprendiz') AS role,
+                    avatar_path, description, created_at
+             FROM users WHERE id = ?"
+        );
         $fetch->bind_param('i', $userId);
         $fetch->execute();
         $updated = $fetch->get_result()->fetch_assoc();
