@@ -125,6 +125,7 @@ if (!defined('QLESS_LIGHTWEIGHT') || !QLESS_LIGHTWEIGHT) {
     require_once __DIR__ . '/helpers.php';
 
     ensure_users_table($conn);
+    ensure_productos_table($conn);
     ensure_ordenes_table($conn);
     ensure_default_admin($conn);
     ensure_demo_products($conn);
