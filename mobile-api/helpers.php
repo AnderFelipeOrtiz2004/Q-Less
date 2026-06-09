@@ -260,18 +260,30 @@ function repair_legacy_reserved_stock(mysqli $conn): void
     @file_put_contents($flagFile, date('c'));
 }
 
-function get_active_reserved_qty(mysqli $conn, int $productId, ?int $excludeReservationId = null): int
+function cart_reservations_table_exists(mysqli $conn): bool
+{
+    static $exists = null;
+    if ($exists !== null) {
+        return $exists;
+    }
+
+    $res = $conn->query("SHOW TABLES LIKE 'cart_reservations'");
+    $exists = $res && $res->num_rows > 0;
+    return $exists;
+}
+
+function get_mobile_reserved_qty(mysqli $conn, int $productId, ?int $excludeReservationId = null): int
 {
     if ($excludeReservationId !== null && $excludeReservationId > 0) {
         $stmt = $conn->prepare(
             "SELECT COALESCE(SUM(quantity), 0) AS qty FROM reservations
-             WHERE product_id = ? AND status = 'active' AND id <> ?"
+             WHERE product_id = ? AND status = 'active' AND expires_at > NOW() AND id <> ?"
         );
         $stmt->bind_param('ii', $productId, $excludeReservationId);
     } else {
         $stmt = $conn->prepare(
             "SELECT COALESCE(SUM(quantity), 0) AS qty FROM reservations
-             WHERE product_id = ? AND status = 'active'"
+             WHERE product_id = ? AND status = 'active' AND expires_at > NOW()"
         );
         $stmt->bind_param('i', $productId);
     }
@@ -281,6 +293,109 @@ function get_active_reserved_qty(mysqli $conn, int $productId, ?int $excludeRese
     $stmt->close();
 
     return intval($row['qty'] ?? 0);
+}
+
+function get_web_only_cart_reserved_qty(mysqli $conn, int $productId): int
+{
+    if (!cart_reservations_table_exists($conn)) {
+        return 0;
+    }
+
+    $stmt = $conn->prepare(
+        "SELECT COALESCE(SUM(cr.cantidad), 0) AS qty FROM cart_reservations cr
+         WHERE cr.producto_id = ? AND cr.status = 'active' AND cr.expires_at > NOW()
+         AND NOT EXISTS (
+             SELECT 1 FROM reservations r
+             WHERE r.user_id = cr.user_id AND r.product_id = cr.producto_id
+             AND r.status = 'active' AND r.expires_at > NOW()
+         )"
+    );
+    $stmt->bind_param('i', $productId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    return intval($row['qty'] ?? 0);
+}
+
+function get_active_reserved_qty(mysqli $conn, int $productId, ?int $excludeReservationId = null): int
+{
+    return get_mobile_reserved_qty($conn, $productId, $excludeReservationId)
+        + get_web_only_cart_reserved_qty($conn, $productId);
+}
+
+function sync_web_cart_reservation(
+    mysqli $conn,
+    int $userId,
+    int $productId,
+    int $quantity,
+    string $expiresAt
+): void {
+    if (!cart_reservations_table_exists($conn) || $userId <= 0 || $productId <= 0 || $quantity <= 0) {
+        return;
+    }
+
+    $stmt = $conn->prepare(
+        "SELECT id FROM cart_reservations
+         WHERE user_id = ? AND producto_id = ? AND status = 'active' LIMIT 1"
+    );
+    $stmt->bind_param('ii', $userId, $productId);
+    $stmt->execute();
+    $existing = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($existing) {
+        $upd = $conn->prepare(
+            "UPDATE cart_reservations
+             SET cantidad = ?, expires_at = ?, updated_at = NOW()
+             WHERE id = ?"
+        );
+        $id = intval($existing['id']);
+        $upd->bind_param('isi', $quantity, $expiresAt, $id);
+        $upd->execute();
+        $upd->close();
+        return;
+    }
+
+    $ins = $conn->prepare(
+        "INSERT INTO cart_reservations (user_id, producto_id, cantidad, status, expires_at, created_at, updated_at)
+         VALUES (?, ?, ?, 'active', ?, NOW(), NOW())"
+    );
+    $ins->bind_param('iiis', $userId, $productId, $quantity, $expiresAt);
+    $ins->execute();
+    $ins->close();
+}
+
+function release_web_cart_mirror(mysqli $conn, int $userId, int $productId): void
+{
+    if (!cart_reservations_table_exists($conn) || $userId <= 0 || $productId <= 0) {
+        return;
+    }
+
+    $stmt = $conn->prepare(
+        "UPDATE cart_reservations
+         SET status = 'released', updated_at = NOW()
+         WHERE user_id = ? AND producto_id = ? AND status = 'active'"
+    );
+    $stmt->bind_param('ii', $userId, $productId);
+    $stmt->execute();
+    $stmt->close();
+}
+
+function mark_web_cart_purchased(mysqli $conn, int $userId, int $productId): void
+{
+    if (!cart_reservations_table_exists($conn) || $userId <= 0 || $productId <= 0) {
+        return;
+    }
+
+    $stmt = $conn->prepare(
+        "UPDATE cart_reservations
+         SET status = 'purchased', purchased_at = NOW(), updated_at = NOW()
+         WHERE user_id = ? AND producto_id = ? AND status = 'active'"
+    );
+    $stmt->bind_param('ii', $userId, $productId);
+    $stmt->execute();
+    $stmt->close();
 }
 
 function deduct_product_stock(mysqli $conn, int $productId, int $quantity): bool
@@ -333,7 +448,7 @@ function get_product_availability(mysqli $conn, int $productId, ?int $excludeRes
 function expire_active_reservations(mysqli $conn): void
 {
     $res = $conn->query(
-        "SELECT id, product_id, quantity FROM reservations
+        "SELECT id, user_id, product_id, quantity FROM reservations
          WHERE status = 'active' AND expires_at <= NOW()"
     );
     if ($res) {
@@ -343,12 +458,47 @@ function expire_active_reservations(mysqli $conn): void
                 intval($row['product_id']),
                 intval($row['quantity'])
             );
+            release_web_cart_mirror(
+                $conn,
+                intval($row['user_id']),
+                intval($row['product_id'])
+            );
         }
         $res->free();
     }
 
     $conn->query(
         "UPDATE reservations SET status = 'expired'
+         WHERE status = 'active' AND expires_at <= NOW()"
+    );
+
+    if (!cart_reservations_table_exists($conn)) {
+        return;
+    }
+
+    $webRes = $conn->query(
+        "SELECT cr.id, cr.user_id, cr.producto_id, cr.cantidad FROM cart_reservations cr
+         WHERE cr.status = 'active' AND cr.expires_at <= NOW()
+         AND NOT EXISTS (
+             SELECT 1 FROM reservations r
+             WHERE r.user_id = cr.user_id AND r.product_id = cr.producto_id
+             AND r.status = 'active'
+         )"
+    );
+    if ($webRes) {
+        while ($row = $webRes->fetch_assoc()) {
+            restore_product_stock(
+                $conn,
+                intval($row['producto_id']),
+                intval($row['cantidad'])
+            );
+        }
+        $webRes->free();
+    }
+
+    $conn->query(
+        "UPDATE cart_reservations
+         SET status = 'released', updated_at = NOW()
          WHERE status = 'active' AND expires_at <= NOW()"
     );
 }
