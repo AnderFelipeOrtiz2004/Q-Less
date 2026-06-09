@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { AuthService } from '../../services/auth.js';
 import { ProductService } from '../../services/product.service.js';
 import { CartService } from '../../services/cart.service.js';
+import { productMatchesCategory } from '../../utils/category-match.js';
 
 @Component({
   selector: 'app-products',
@@ -57,9 +58,15 @@ export class ProductsComponent implements OnInit, OnDestroy {
       this.loadProducts();
     });
 
+    this.refreshTimer = setInterval(() => this.loadProducts(), 30000);
   }
 
+  private refreshTimer: ReturnType<typeof setInterval> | null = null;
+
   ngOnDestroy(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
   }
 
   setCategory(category: string): void {
@@ -96,8 +103,10 @@ export class ProductsComponent implements OnInit, OnDestroy {
         return matchesSearch;
       }
 
-      const productCategory = (product.categoria || '').toLowerCase();
-      return matchesSearch && productCategory.includes(this.selectedCategory.toLowerCase());
+      return matchesSearch && productMatchesCategory(
+        product.categoria || '',
+        this.selectedCategory
+      );
     });
   }
 

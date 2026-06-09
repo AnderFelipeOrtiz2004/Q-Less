@@ -22,6 +22,9 @@ $json_input = json_decode(file_get_contents('php://input'), true) ?: [];
 $input = array_merge($_REQUEST, $json_input);
 $action = isset($input['action']) ? trim((string) $input['action']) : '';
 
+repair_legacy_reserved_stock($conn);
+expire_active_reservations($conn);
+
 // Crear solicitud de compra (pendiente de aprobación admin)
 if ($method === 'POST' && $action === 'create') {
     $userId = intval($input['user_id'] ?? 0);
@@ -176,6 +179,8 @@ if ($method === 'POST' && $action === 'approve') {
             $resStmt->close();
         }
 
+        mark_web_cart_purchased($conn, intval($order['user_id']), $productId);
+
         $upd = $conn->prepare("UPDATE ordenes SET status = 'aprobada', updated_at = NOW() WHERE id = ?");
         $upd->bind_param('i', $orderId);
         $upd->execute();
@@ -228,6 +233,8 @@ if ($method === 'POST' && $action === 'reject') {
             $resStmt->execute();
             $resStmt->close();
         }
+
+        release_web_cart_mirror($conn, intval($order['user_id']), $productId);
 
         $upd = $conn->prepare("UPDATE ordenes SET status = 'rechazada', updated_at = NOW() WHERE id = ?");
         $upd->bind_param('i', $orderId);

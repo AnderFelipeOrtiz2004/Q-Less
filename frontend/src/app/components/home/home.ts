@@ -6,6 +6,7 @@ import { filter } from 'rxjs/operators';
 import { AuthService } from '../../services/auth.js';
 import { ProductService } from '../../services/product.service.js';
 import { CartService } from '../../services/cart.service.js';
+import { productMatchesCategory } from '../../utils/category-match.js';
 
 @Component({
   selector: 'app-home',
@@ -52,6 +53,7 @@ export class HomeComponent implements OnInit, OnDestroy {
     });
 
     this.loadProducts();
+    this.refreshTimer = setInterval(() => this.loadProducts(), 30000);
 
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
@@ -63,7 +65,12 @@ export class HomeComponent implements OnInit, OnDestroy {
 
   }
 
+  private refreshTimer: ReturnType<typeof setInterval> | null = null;
+
   ngOnDestroy(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
   }
 
   loadProducts(): void {
@@ -98,8 +105,10 @@ export class HomeComponent implements OnInit, OnDestroy {
         return matchesSearch;
       }
 
-      const productCategory = (p.categoria || '').toLowerCase();
-      return matchesSearch && productCategory.includes(this.selectedCategory.toLowerCase());
+      return matchesSearch && productMatchesCategory(
+        p.categoria || '',
+        this.selectedCategory
+      );
     });
   }
 

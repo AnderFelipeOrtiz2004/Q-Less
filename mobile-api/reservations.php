@@ -127,6 +127,8 @@ if ($method === 'POST' && $action === 'create') {
         $reservationId = $conn->insert_id;
         $ins->close();
 
+        sync_web_cart_reservation($conn, $userId, $productId, $quantity, $expiresSql);
+
         $after = get_product_availability($conn, $productId);
         $conn->commit();
 
@@ -155,7 +157,9 @@ if ($method === 'POST' && $action === 'release') {
 
     $conn->begin_transaction();
     try {
-        $stmt = $conn->prepare("SELECT product_id, quantity FROM reservations WHERE id = ? AND status = 'active' FOR UPDATE");
+        $stmt = $conn->prepare(
+            "SELECT user_id, product_id, quantity FROM reservations WHERE id = ? AND status = 'active' FOR UPDATE"
+        );
         if (!$stmt) {
             throw new Exception('Error al consultar reserva: ' . $conn->error);
         }
@@ -173,6 +177,11 @@ if ($method === 'POST' && $action === 'release') {
             $conn,
             intval($reservation['product_id']),
             intval($reservation['quantity'])
+        );
+        release_web_cart_mirror(
+            $conn,
+            intval($reservation['user_id']),
+            intval($reservation['product_id'])
         );
 
         $updateReservation = $conn->prepare("UPDATE reservations SET status = 'cancelled' WHERE id = ?");
@@ -239,6 +248,14 @@ if ($method === 'POST' && $action === 'update') {
         $upd->bind_param('isis', $newQuantity, $expiresSql, $reservationId, $status);
         $upd->execute();
         $upd->close();
+
+        sync_web_cart_reservation(
+            $conn,
+            intval($reservation['user_id']),
+            $productId,
+            $newQuantity,
+            $expiresSql
+        );
 
         $after = get_product_availability($conn, $productId);
         $conn->commit();
