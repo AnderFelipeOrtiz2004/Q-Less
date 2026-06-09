@@ -60,6 +60,9 @@ $dbSsl = strtolower(qless_env('DB_SSL', 'false')) === 'true';
 
 $conn = mysqli_init();
 if ($conn === false) {
+    if (defined('QLESS_LIGHTWEIGHT') && QLESS_LIGHTWEIGHT) {
+        throw new RuntimeException('No se pudo inicializar MySQL');
+    }
     json_connection_error('No se pudo inicializar MySQL');
 }
 
@@ -79,9 +82,11 @@ if (!$connected && $dbHost !== 'localhost') {
 }
 
 if (!$connected) {
-    json_connection_error(
-        'Error de conexión a la base de datos. Revisa las variables MYSQL* en Railway.'
-    );
+    $dbError = 'Error de conexión a la base de datos. Revisa las variables MYSQL* en Railway.';
+    if (defined('QLESS_LIGHTWEIGHT') && QLESS_LIGHTWEIGHT) {
+        throw new RuntimeException($dbError);
+    }
+    json_connection_error($dbError);
 }
 
 $conn->set_charset('utf8mb4');
@@ -116,17 +121,20 @@ if ($envBaseUrl !== '') {
     $baseUrl = $scheme . '://' . $httpHost . $root_dir;
 }
 
-require_once __DIR__ . '/helpers.php';
+if (!defined('QLESS_LIGHTWEIGHT') || !QLESS_LIGHTWEIGHT) {
+    require_once __DIR__ . '/helpers.php';
 
-ensure_users_table($conn);
-ensure_ordenes_table($conn);
-ensure_default_admin($conn);
-ensure_demo_products($conn);
+    ensure_users_table($conn);
+    ensure_productos_table($conn);
+    ensure_ordenes_table($conn);
+    ensure_default_admin($conn);
+    ensure_demo_products($conn);
 
-foreach (['storage', 'storage/products', 'storage/avatars'] as $dir) {
-    $fullDir = __DIR__ . '/' . $dir;
-    if (!is_dir($fullDir)) {
-        @mkdir($fullDir, 0775, true);
+    foreach (['storage', 'storage/products', 'storage/avatars'] as $dir) {
+        $fullDir = __DIR__ . '/' . $dir;
+        if (!is_dir($fullDir)) {
+            @mkdir($fullDir, 0775, true);
+        }
     }
 }
 
