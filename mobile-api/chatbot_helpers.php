@@ -1,5 +1,61 @@
 <?php
 
+function get_chatbot_suggestions(): array
+{
+    return [
+        '¿Cómo hacer una maqueta del sistema solar?',
+        '¿Qué materiales necesito para un robot escolar?',
+        '¿Qué productos hay disponibles ahora?',
+        'Ayúdame con un proyecto de cartón',
+        'Ideas para una feria de ciencias',
+    ];
+}
+
+function is_greeting_message(string $text): bool
+{
+    $lower = mb_strtolower(trim($text), 'UTF-8');
+    if ($lower === '') {
+        return false;
+    }
+
+    $greetings = [
+        'hola', 'buenos dias', 'buenos días', 'buenas tardes', 'buenas noches',
+        'buen dia', 'buen día', 'hey', 'hi', 'hello', 'saludos', 'que tal', 'qué tal',
+    ];
+
+    foreach ($greetings as $greeting) {
+        if ($lower === $greeting || str_starts_with($lower, $greeting . ' ') || str_starts_with($lower, $greeting . ',')) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function contains_profanity(string $text): bool
+{
+    $lower = mb_strtolower($text, 'UTF-8');
+    $patterns = [
+        '/\b(mierda|pendejo|pendeja|puta|puto|hijueputa|hp|marica|gonorrea|imbecil|idiota|estupido|estúpido|carajo|verga|cul[oó]|chinga|chingar|joder|coño|cabron|cabrona|malparido|hpta)\b/u',
+        '/\b(fuck|shit|bitch|asshole|damn|bastard|dick|pussy)\b/u',
+    ];
+
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $lower)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function build_greeting_response(): string
+{
+    return "¡Hola! Soy tu asistente de proyectos escolares de Q-LESS.\n\n"
+        . "Puedo ayudarte con materiales, pasos, productos con stock y consejos para tu proyecto.\n\n"
+        . "Elige una sugerencia o escribe tu pregunta.";
+}
+
 function extract_chatbot_category(string $text): string
 {
     $lower = mb_strtolower($text, 'UTF-8');
@@ -24,12 +80,16 @@ function extract_chatbot_category(string $text): string
 function fetch_chatbot_products(mysqli $conn): array
 {
     $products = [];
+    if (function_exists('expire_active_reservations')) {
+        expire_active_reservations($conn);
+    }
+
     $result = $conn->query(
         'SELECT id, nombre, descripcion, categoria, precio, stock
          FROM productos
          WHERE stock > 0
          ORDER BY nombre ASC
-         LIMIT 30'
+         LIMIT 100'
     );
     if (!$result) {
         return $products;
@@ -170,8 +230,9 @@ function call_gemini_api(string $apiKey, string $systemPrompt): ?string
     $payload = json_encode([
         'contents' => [['parts' => [['text' => $systemPrompt]]]],
         'generationConfig' => [
-            'temperature' => 0.7,
-            'maxOutputTokens' => 800,
+            'temperature' => 0.85,
+            'maxOutputTokens' => 1200,
+            'topP' => 0.92,
         ],
     ]);
 
@@ -221,11 +282,16 @@ function sanitize_chatbot_response(string $text): string
     return $result !== '' ? $result : $text;
 }
 
-function send_chatbot_success(string $botResponse): void
+function send_chatbot_success(string $botResponse, array $extra = []): void
 {
+    $payload = array_merge(
+        ['bot_response' => sanitize_chatbot_response($botResponse)],
+        $extra
+    );
+
     echo json_encode([
         'status' => 'success',
-        'data' => ['bot_response' => sanitize_chatbot_response($botResponse)],
+        'data' => $payload,
     ], JSON_UNESCAPED_UNICODE);
     exit();
 }

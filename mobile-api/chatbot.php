@@ -54,6 +54,22 @@ try {
         }
     }
 
+    if ($question !== '' && contains_profanity($question)) {
+        http_response_code(400);
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Tu mensaje contiene lenguaje inapropiado. Por favor usa un tono respetuoso.',
+            'code' => 'profanity_blocked',
+        ], JSON_UNESCAPED_UNICODE);
+        exit();
+    }
+
+    if ($question !== '' && is_greeting_message($question)) {
+        send_chatbot_success(build_greeting_response(), [
+            'suggestions' => get_chatbot_suggestions(),
+        ]);
+    }
+
     $category = isset($data['categoria']) && trim((string) $data['categoria']) !== ''
         ? trim((string) $data['categoria'])
         : extract_chatbot_category($question);
@@ -86,18 +102,21 @@ try {
 
         $productLines = format_product_lines(filter_products_for_topic($products, $category, $question));
 
-        $systemPrompt = "Eres el asistente de Q-LESS para proyectos escolares. Responde en español, claro y accionable."
+        $systemPrompt = "Eres el asistente experto de Q-LESS para proyectos escolares en Colombia."
+            . " Responde en español, con detalle práctico, tiempos estimados y alternativas económicas."
+            . " Adapta la dificultad al contexto escolar (primaria/bachillerato)."
+            . " Si faltan datos, haz 1 pregunta breve antes de asumir."
             . "\n\nHistorial de conversación:\n"
             . $historyText
-            . "\n\nInventario con stock:\n"
+            . "\n\nInventario REAL con stock actualizado:\n"
             . $productLines
-            . "\n\nFormato requerido de respuesta:\n"
-            . "MATERIALES\n- Lista breve de materiales necesarios.\n\n"
-            . "PASOS\n1. Pasos concretos para realizar el proyecto.\n\n"
-            . "DISPONIBLES EN PRODUCTOS\n- Solo menciona productos del inventario con stock que sirvan para el proyecto.\n\n"
-            . "CONSEJOS\n- 2 o 3 recomendaciones cortas.\n\n"
-            . "No uses Markdown con asteriscos, tablas ni encabezados con #."
-            . "\nResponde como guía escolar de Q-LESS, sin mencionar proveedores ni tecnología interna.";
+            . "\n\nFormato OBLIGATORIO:\n"
+            . "MATERIALES\n- Lista con cantidades aproximadas y alternativas.\n\n"
+            . "PASOS\n1. Pasos numerados, secuenciales y verificables.\n\n"
+            . "DISPONIBLES EN PRODUCTOS\n- Solo productos del inventario con stock > 0, con precio y stock.\n\n"
+            . "CONSEJOS\n- 3 recomendaciones de seguridad, organización y presentación.\n\n"
+            . "Reglas: no uses Markdown con asteriscos ni #; no menciones IA, Gemini, APIs ni proveedores;"
+            . " mantén tono educativo y respetuoso; rechaza temas inapropiados.";
 
         $geminiText = call_gemini_api($apiKey, $systemPrompt);
         if ($geminiText !== null) {
