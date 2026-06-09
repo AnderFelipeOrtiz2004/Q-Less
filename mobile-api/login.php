@@ -29,7 +29,11 @@ try {
         send_json(400, ['status' => 'error', 'message' => 'El correo y la contraseña son requeridos']);
     }
 
-    $stmt = $conn->prepare('SELECT id, name, email, password, role FROM users WHERE email = ? LIMIT 1');
+    $stmt = $conn->prepare(
+        "SELECT id, name, email, password,
+                COALESCE(NULLIF(role, ''), NULLIF(rol, ''), 'aprendiz') AS role
+         FROM users WHERE email = ? LIMIT 1"
+    );
     if (!$stmt) {
         send_json(500, [
             'status' => 'error',

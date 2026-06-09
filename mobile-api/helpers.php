@@ -29,16 +29,20 @@ function ensure_default_admin(mysqli $conn): void
 
     if ($exists) {
         $upd = $conn->prepare('UPDATE users SET name = ?, password = ?, role = ? WHERE email = ?');
-        $upd->bind_param('ssss', $name, $password, $role, $email);
-        $upd->execute();
-        $upd->close();
+        if ($upd) {
+            $upd->bind_param('ssss', $name, $password, $role, $email);
+            $upd->execute();
+            $upd->close();
+        }
         return;
     }
 
     $ins = $conn->prepare('INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)');
-    $ins->bind_param('ssss', $name, $email, $password, $role);
-    $ins->execute();
-    $ins->close();
+    if ($ins) {
+        $ins->bind_param('ssss', $name, $email, $password, $role);
+        $ins->execute();
+        $ins->close();
+    }
 }
 
 function ensure_demo_products(mysqli $conn): void
@@ -94,7 +98,62 @@ function ensure_users_table(mysqli $conn): void
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
     );
 
+    ensure_users_role_column($conn);
     migrate_legacy_usuarios_table($conn);
+}
+
+function ensure_users_role_column(mysqli $conn): void
+{
+    $check = $conn->query("SHOW COLUMNS FROM users LIKE 'role'");
+    if ($check && $check->num_rows > 0) {
+        return;
+    }
+
+    @$conn->query(
+        "ALTER TABLE users ADD COLUMN role VARCHAR(30) NOT NULL DEFAULT 'aprendiz' AFTER password"
+    );
+
+    $rolCheck = $conn->query("SHOW COLUMNS FROM users LIKE 'rol'");
+    if ($rolCheck && $rolCheck->num_rows > 0) {
+        @$conn->query(
+            "UPDATE users SET role = CASE
+                WHEN LOWER(rol) IN ('admin', 'administrador') THEN 'admin'
+                WHEN LOWER(rol) IN ('instructor') THEN 'instructor'
+                ELSE 'aprendiz'
+            END"
+        );
+    }
+}
+
+function ensure_productos_table(mysqli $conn): void
+{
+    $conn->query(
+        "CREATE TABLE IF NOT EXISTS productos (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            nombre VARCHAR(150) NOT NULL,
+            descripcion TEXT NULL,
+            categoria VARCHAR(80) NOT NULL DEFAULT 'Cuadernos',
+            precio INT NOT NULL DEFAULT 0,
+            stock INT NOT NULL DEFAULT 0,
+            image_path VARCHAR(255) NULL,
+            user_id INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+    );
+
+    $columns = [
+        'categoria' => "VARCHAR(80) NOT NULL DEFAULT 'Cuadernos'",
+        'image_path' => 'VARCHAR(255) NULL',
+        'user_id' => 'INT NULL',
+    ];
+
+    foreach ($columns as $column => $definition) {
+        $res = $conn->query("SHOW COLUMNS FROM productos LIKE '$column'");
+        if ($res && $res->num_rows === 0) {
+            @$conn->query("ALTER TABLE productos ADD COLUMN $column $definition");
+        }
+    }
 }
 
 function migrate_legacy_usuarios_table(mysqli $conn): void
