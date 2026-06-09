@@ -1,0 +1,7 @@
+.env
+!.env.example
+storage/.stock_logic_v2
+storage/products/*
+!storage/products/.gitkeep
+storage/avatars/*
+!storage/avatars/.gitkeep

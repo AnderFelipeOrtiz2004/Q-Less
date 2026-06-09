@@ -1,0 +1,83 @@
+<?php
+require_once __DIR__ . '/cors.php';
+header('Content-Type: application/json; charset=UTF-8');
+
+require_once __DIR__ . '/config.php';
+
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
+function send_json(int $statusCode, array $payload): void
+{
+    http_response_code($statusCode);
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+    exit();
+}
+
+try {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        send_json(405, ['status' => 'error', 'message' => 'Método no permitido']);
+    }
+
+    $json_input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $input = array_merge($_REQUEST, is_array($json_input) ? $json_input : []);
+
+    $email = trim((string) ($input['email'] ?? $input['correo'] ?? ''));
+    $password = (string) ($input['password'] ?? '');
+
+    if ($email === '' || $password === '') {
+        send_json(400, ['status' => 'error', 'message' => 'El correo y la contraseña son requeridos']);
+    }
+
+    $stmt = $conn->prepare('SELECT id, name, email, password, role FROM users WHERE email = ? LIMIT 1');
+    if (!$stmt) {
+        send_json(500, [
+            'status' => 'error',
+            'message' => 'Error en la base de datos. Ejecuta setup_database.php o revisa MySQL.',
+            'detail' => $conn->error,
+        ]);
+    }
+
+    $stmt->bind_param('s', $email);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    $hash = (string) ($user['password'] ?? '');
+    $valid = $hash !== '' && password_verify($password, $hash);
+
+    // Contraseñas antiguas guardadas en texto plano
+    if (!$valid && $hash !== '' && hash_equals($hash, $password)) {
+        $valid = true;
+        $newHash = password_hash($password, PASSWORD_BCRYPT);
+        $upd = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
+        if ($upd) {
+            $uid = (int) $user['id'];
+            $upd->bind_param('si', $newHash, $uid);
+            $upd->execute();
+            $upd->close();
+        }
+    }
+
+    if (!$user || !$valid) {
+        send_json(401, ['status' => 'error', 'message' => 'Credenciales inválidas']);
+    }
+
+    send_json(200, [
+        'status' => 'success',
+        'message' => 'Sesión iniciada correctamente',
+        'user' => [
+            'id' => (int) $user['id'],
+            'nombre' => $user['name'],
+            'correo' => $user['email'],
+            'role' => $user['role'] ?? 'aprendiz',
+            'base_api_url' => $baseUrl,
+        ],
+    ]);
+} catch (Throwable $e) {
+    send_json(500, [
+        'status' => 'error',
+        'message' => 'Error interno en login',
+        'detail' => $e->getMessage(),
+    ]);
+}
