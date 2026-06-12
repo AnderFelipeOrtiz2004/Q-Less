@@ -22,16 +22,22 @@ try {
     $json_input = json_decode(file_get_contents('php://input'), true) ?: [];
     $input = array_merge($_REQUEST, is_array($json_input) ? $json_input : []);
 
-    $email = trim((string) ($input['email'] ?? $input['correo'] ?? ''));
+    $email = strtolower(trim((string) ($input['email'] ?? $input['correo'] ?? '')));
     $password = (string) ($input['password'] ?? '');
 
     if ($email === '' || $password === '') {
         send_json(400, ['status' => 'error', 'message' => 'El correo y la contraseña son requeridos']);
     }
 
+    if (!is_gmail_email($email)) {
+        send_json(400, ['status' => 'error', 'message' => 'Solo puedes iniciar sesión con un correo Gmail.']);
+    }
+
     $stmt = $conn->prepare(
         "SELECT id, name, email, password,
-                COALESCE(NULLIF(role, ''), NULLIF(rol, ''), 'aprendiz') AS role
+                COALESCE(NULLIF(role, ''), NULLIF(rol, ''), 'aprendiz') AS role,
+                COALESCE(email_verified, 1) AS email_verified,
+                COALESCE(purchases_enabled, 0) AS purchases_enabled
          FROM users WHERE email = ? LIMIT 1"
     );
     if (!$stmt) {
@@ -67,6 +73,14 @@ try {
         send_json(401, ['status' => 'error', 'message' => 'Credenciales inválidas']);
     }
 
+    if (intval($user['email_verified']) !== 1) {
+        send_json(403, [
+            'status' => 'error',
+            'message' => 'Debes verificar tu correo Gmail antes de iniciar sesión.',
+            'code' => 'email_not_verified',
+        ]);
+    }
+
     send_json(200, [
         'status' => 'success',
         'message' => 'Sesión iniciada correctamente',
@@ -75,6 +89,7 @@ try {
             'nombre' => $user['name'],
             'correo' => $user['email'],
             'role' => $user['role'] ?? 'aprendiz',
+            'purchases_enabled' => intval($user['purchases_enabled']) === 1,
             'base_api_url' => $baseUrl,
         ],
     ]);

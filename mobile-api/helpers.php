@@ -81,6 +81,17 @@ function ensure_demo_products(mysqli $conn): void
     $stmt->close();
 }
 
+function is_gmail_email(string $email): bool
+{
+    $email = strtolower(trim($email));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return false;
+    }
+
+    $domain = substr(strrchr($email, '@') ?: '', 1);
+    return in_array($domain, ['gmail.com', 'googlemail.com'], true);
+}
+
 function ensure_users_table(mysqli $conn): void
 {
     $conn->query(
@@ -100,7 +111,30 @@ function ensure_users_table(mysqli $conn): void
 
     ensure_users_role_column($conn);
     ensure_users_profile_columns($conn);
+    ensure_users_commerce_columns($conn);
     migrate_legacy_usuarios_table($conn);
+}
+
+function ensure_users_commerce_columns(mysqli $conn): void
+{
+    $columns = [
+        'email_verified' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'purchases_enabled' => 'TINYINT(1) NOT NULL DEFAULT 0',
+    ];
+
+    foreach ($columns as $column => $definition) {
+        $res = $conn->query("SHOW COLUMNS FROM users LIKE '$column'");
+        if ($res && $res->num_rows === 0) {
+            @$conn->query("ALTER TABLE users ADD COLUMN $column $definition");
+        }
+    }
+
+    $flagFile = __DIR__ . '/storage/.users_commerce_v1';
+    if (!is_file($flagFile)) {
+        @$conn->query('UPDATE users SET email_verified = 1');
+        @$conn->query("UPDATE users SET purchases_enabled = 1 WHERE LOWER(role) = 'admin' OR LOWER(COALESCE(rol, '')) = 'admin'");
+        @file_put_contents($flagFile, date('c'));
+    }
 }
 
 function ensure_users_profile_columns(mysqli $conn): void
@@ -235,6 +269,57 @@ function ensure_ordenes_table(mysqli $conn): void
     if ($reservationCol && $reservationCol->num_rows === 0) {
         $conn->query('ALTER TABLE ordenes ADD COLUMN reservation_id INT NULL AFTER product_id');
     }
+
+    $paymentColumns = [
+        'payment_url' => 'VARCHAR(500) NULL',
+        'mp_preference_id' => 'VARCHAR(120) NULL',
+        'mp_external_reference' => 'VARCHAR(120) NULL',
+    ];
+    foreach ($paymentColumns as $column => $definition) {
+        $res = $conn->query("SHOW COLUMNS FROM ordenes LIKE '$column'");
+        if ($res && $res->num_rows === 0) {
+            @$conn->query("ALTER TABLE ordenes ADD COLUMN $column $definition");
+        }
+    }
+}
+
+function user_can_purchase(mysqli $conn, int $userId): array
+{
+    $stmt = $conn->prepare(
+        "SELECT id, email,
+                COALESCE(email_verified, 1) AS email_verified,
+                COALESCE(purchases_enabled, 0) AS purchases_enabled
+         FROM users WHERE id = ? LIMIT 1"
+    );
+    $stmt->bind_param('i', $userId);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$user) {
+        return ['ok' => false, 'message' => 'Usuario no encontrado'];
+    }
+    if (!is_gmail_email((string) $user['email'])) {
+        return ['ok' => false, 'message' => 'Solo cuentas Gmail pueden comprar en Q-LESS.'];
+    }
+    if (intval($user['email_verified']) !== 1) {
+        return ['ok' => false, 'message' => 'Debes verificar tu correo Gmail antes de comprar.'];
+    }
+    if (intval($user['purchases_enabled']) !== 1) {
+        return [
+            'ok' => false,
+            'message' => 'Tus compras aún no están habilitadas. Un administrador debe activarlas.',
+            'code' => 'purchases_disabled',
+        ];
+    }
+
+    return ['ok' => true, 'user' => $user];
+}
+
+function format_order_row(array $row): array
+{
+    $row['product_image_url'] = resolve_image_url($row['product_image_url'] ?? null);
+    return $row;
 }
 
 /**
@@ -524,7 +609,9 @@ function resolve_image_url(?string $path): string
     $candidates = array_unique([
         $cleanPath,
         'storage/products/' . $basename,
+        'storage/productos/' . $basename,
         'products/' . $basename,
+        'productos/' . $basename,
         'storage/' . $basename,
     ]);
 
@@ -543,6 +630,7 @@ function resolve_image_url(?string $path): string
         $suffix = $m[0];
         $glob = array_merge(
             glob(__DIR__ . '/storage/products/*' . $suffix . '.*') ?: [],
+            glob(__DIR__ . '/storage/productos/*' . $suffix . '.*') ?: [],
             glob(__DIR__ . '/products/*' . $suffix . '.*') ?: []
         );
         if ($glob && is_file($glob[0])) {
