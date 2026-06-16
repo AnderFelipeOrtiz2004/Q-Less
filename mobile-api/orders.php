@@ -3,6 +3,7 @@ require_once __DIR__ . '/cors.php';
 header('Content-Type: application/json; charset=utf-8');
 
 require_once 'config.php';
+require_once __DIR__ . '/mail_helpers.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -15,6 +16,55 @@ function send_json($statusCode, $payload) {
 
 function is_admin_request($input) {
     return isset($input['role']) && strtolower(trim($input['role'])) === 'admin';
+}
+
+function resolve_admin_name(mysqli $conn, array $input): string
+{
+    $adminUserId = intval($input['user_id'] ?? 0);
+    if ($adminUserId > 0) {
+        $stmt = $conn->prepare('SELECT name FROM users WHERE id = ? LIMIT 1');
+        $stmt->bind_param('i', $adminUserId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $name = trim((string) ($row['name'] ?? ''));
+        if ($name !== '') {
+            return $name;
+        }
+    }
+
+    $envName = trim(load_local_env('ADMIN_NAME'));
+    return $envName !== '' ? $envName : 'Administrador';
+}
+
+function send_purchase_approved_email(array $buyer, array $order, string $adminName): bool
+{
+    $email = strtolower(trim((string) ($buyer['email'] ?? '')));
+    if (!is_gmail_email($email)) {
+        return false;
+    }
+
+    $buyerName = trim((string) ($buyer['name'] ?? 'Cliente'));
+    $orderId = (int) ($order['id'] ?? 0);
+    $productName = (string) ($order['product_name'] ?? 'Producto');
+    $quantity = (int) ($order['quantity'] ?? 1);
+    $total = (int) ($order['total_price'] ?? 0);
+    $purchaseCode = (string) $orderId;
+
+    $body = "Hola {$buyerName},\n\n"
+        . "El administrador {$adminName} aceptó tu compra en Q-LESS.\n\n"
+        . "Producto: {$productName}\n"
+        . "Cantidad: {$quantity}\n"
+        . "Total: \${$total}\n\n"
+        . "Tu código de compra es: {$purchaseCode}\n\n"
+        . "Guarda este código. Lo necesitarás para recoger tu pedido.\n\n"
+        . "— Equipo Q-LESS";
+
+    return send_reset_email(
+        $email,
+        'Compra aceptada - Código ' . $purchaseCode,
+        $body
+    );
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -34,6 +84,15 @@ if ($method === 'POST' && $action === 'create') {
 
     if ($userId <= 0 || $productId <= 0 || $quantity <= 0) {
         send_json(400, ['status' => 'error', 'message' => 'Datos de compra inválidos']);
+    }
+
+    $purchaseCheck = user_can_purchase($conn, $userId);
+    if (!$purchaseCheck['ok']) {
+        send_json(403, [
+            'status' => 'error',
+            'message' => $purchaseCheck['message'],
+            'code' => $purchaseCheck['code'] ?? null,
+        ]);
     }
 
     $conn->begin_transaction();
@@ -130,8 +189,12 @@ if ($method === 'POST' && $action === 'create') {
         $conn->commit();
         send_json(200, [
             'status' => 'success',
-            'message' => 'Solicitud enviada. Un administrador revisará tu compra.',
-            'data' => ['order_id' => $orderId, 'order_status' => $status],
+            'message' => 'Solicitud enviada. Tu compra quedó PENDIENTE hasta que un administrador la apruebe.',
+            'data' => [
+                'order_id' => $orderId,
+                'order_status' => $status,
+                'status_label' => 'Pendiente de aprobación',
+            ],
         ]);
     } catch (Throwable $e) {
         $conn->rollback();
@@ -181,13 +244,35 @@ if ($method === 'POST' && $action === 'approve') {
 
         mark_web_cart_purchased($conn, intval($order['user_id']), $productId);
 
+        $userStmt = $conn->prepare('SELECT id, name, email FROM users WHERE id = ? LIMIT 1');
+        $uid = intval($order['user_id']);
+        $userStmt->bind_param('i', $uid);
+        $userStmt->execute();
+        $buyer = $userStmt->get_result()->fetch_assoc();
+        $userStmt->close();
+
         $upd = $conn->prepare("UPDATE ordenes SET status = 'aprobada', updated_at = NOW() WHERE id = ?");
         $upd->bind_param('i', $orderId);
         $upd->execute();
         $upd->close();
 
+        $adminName = resolve_admin_name($conn, $input);
+        $emailSent = $buyer ? send_purchase_approved_email($buyer, $order, $adminName) : false;
+
         $conn->commit();
-        send_json(200, ['status' => 'success', 'message' => 'Compra aprobada correctamente']);
+        send_json(200, [
+            'status' => 'success',
+            'message' => $emailSent
+                ? "Compra aprobada. Se envió el código {$orderId} al correo del usuario."
+                : "Compra aprobada. Código de compra: {$orderId}. No se pudo enviar el correo (revisa SMTP).",
+            'data' => [
+                'order_id' => $orderId,
+                'purchase_code' => (string) $orderId,
+                'order_status' => 'aprobada',
+                'email_sent' => $emailSent,
+                'admin_name' => $adminName,
+            ],
+        ]);
     } catch (Throwable $e) {
         $conn->rollback();
         send_json(500, ['status' => 'error', 'message' => $e->getMessage()]);
@@ -256,8 +341,7 @@ if ($method === 'GET' && $action === 'get_user_orders') {
 
     $orders = [];
     while ($row = $res->fetch_assoc()) {
-        $row['product_image_url'] = resolve_image_url($row['product_image_url']);
-        $orders[] = $row;
+        $orders[] = format_order_row($row);
     }
     send_json(200, ['status' => 'success', 'data' => $orders]);
 }
@@ -280,8 +364,7 @@ if ($method === 'GET' && $action === 'get_pending_orders') {
 
     $orders = [];
     while ($row = $res->fetch_assoc()) {
-        $row['product_image_url'] = resolve_image_url($row['product_image_url']);
-        $orders[] = $row;
+        $orders[] = format_order_row($row);
     }
     send_json(200, ['status' => 'success', 'data' => $orders]);
 }
@@ -303,8 +386,7 @@ if ($method === 'GET' && $action === 'get_all_orders') {
 
     $orders = [];
     while ($row = $res->fetch_assoc()) {
-        $row['product_image_url'] = resolve_image_url($row['product_image_url']);
-        $orders[] = $row;
+        $orders[] = format_order_row($row);
     }
     send_json(200, ['status' => 'success', 'data' => $orders]);
 }

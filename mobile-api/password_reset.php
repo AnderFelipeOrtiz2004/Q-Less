@@ -62,8 +62,8 @@ if ($method !== 'POST') {
 if ($action === 'request') {
     $email = strtolower(trim((string) ($input['email'] ?? $input['correo'] ?? '')));
 
-    if (!is_valid_email($email)) {
-        send_json(400, ['status' => 'error', 'message' => 'Correo electrónico inválido']);
+    if (!is_valid_email($email) || !is_gmail_email($email)) {
+        send_json(400, ['status' => 'error', 'message' => 'Debes usar un correo Gmail válido']);
     }
 
     $user = find_user_by_email($conn, $email);
@@ -117,8 +117,8 @@ if ($action === 'reset') {
     $code = trim((string) ($input['code'] ?? ''));
     $newPassword = (string) ($input['password'] ?? $input['new_password'] ?? '');
 
-    if (!is_valid_email($email) || $code === '') {
-        send_json(400, ['status' => 'error', 'message' => 'Correo y código son requeridos']);
+    if (!is_valid_email($email) || !is_gmail_email($email) || $code === '') {
+        send_json(400, ['status' => 'error', 'message' => 'Correo Gmail y código son requeridos']);
     }
     if (strlen($newPassword) < 6) {
         send_json(400, ['status' => 'error', 'message' => 'La contraseña debe tener al menos 6 caracteres']);
