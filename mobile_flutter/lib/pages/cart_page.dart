@@ -15,6 +15,7 @@ class CartPage extends StatefulWidget {
   final int userId;
   final String userName;
   final bool purchasesEnabled;
+  final bool emailVerified;
   final List<CartItem> cartItems;
   final Function(List<CartItem>) onCartUpdate;
   final VoidCallback onPurchaseComplete;
@@ -25,6 +26,7 @@ class CartPage extends StatefulWidget {
     required this.userId,
     required this.userName,
     this.purchasesEnabled = false,
+    this.emailVerified = true,
     required this.cartItems,
     required this.onCartUpdate,
     required this.onPurchaseComplete,
@@ -184,6 +186,30 @@ class _CartPageState extends State<CartPage> {
 
   Future<void> _processPurchase() async {
     if (_purchaseLocked || _isProcessing) return;
+
+    if (!widget.emailVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Debes verificar tu correo Gmail antes de enviar una compra.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    if (!widget.purchasesEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Tus compras aún no están habilitadas. Un administrador debe activarlas.',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     if (_items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -379,6 +405,30 @@ class _CartPageState extends State<CartPage> {
             )
           : Column(
               children: [
+                if (!widget.emailVerified)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEBEE),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFEF9A9A)),
+                    ),
+                    child: const Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.mark_email_unread_outlined, color: Colors.red, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Verifica tu correo Gmail para poder enviar compras.',
+                            style: TextStyle(fontSize: 12, color: Colors.black87),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 if (!widget.purchasesEnabled)
                   Container(
                     width: double.infinity,
@@ -502,7 +552,9 @@ class _CartPageState extends State<CartPage> {
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: (!_isProcessing && widget.purchasesEnabled)
+                          onPressed: (!_isProcessing &&
+                                  widget.purchasesEnabled &&
+                                  widget.emailVerified)
                               ? _processPurchase
                               : null,
                           style: ElevatedButton.styleFrom(

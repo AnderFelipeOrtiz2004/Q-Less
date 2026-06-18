@@ -9,7 +9,7 @@ header('Pragma: no-cache');
 
 function send_json($statusCode, $payload) {
     http_response_code($statusCode);
-    echo json_encode($payload);
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     exit();
 }
 
@@ -210,11 +210,20 @@ if ($method === 'POST' || $method === 'PUT') {
     $categoria = isset($input['categoria']) ? trim($input['categoria']) : 'Cuadernos';
     $precio = isset($input['precio']) ? intval($input['precio']) : 0;
     $stock = isset($input['stock']) ? intval($input['stock']) : 0;
-    $imagePath = isset($input['image_path']) ? trim($input['image_path']) : '';
+    $imagePath = normalize_storage_image_path($input['image_path'] ?? '');
     $userId = isset($input['user_id']) ? intval($input['user_id']) : 1;
     $savedImagePath = save_product_image($input);
     if ($savedImagePath !== '') {
         $imagePath = $savedImagePath;
+    }
+
+    if ($method === 'PUT' && $id > 0 && $imagePath === '') {
+        $existing = $conn->prepare('SELECT image_path FROM productos WHERE id = ? LIMIT 1');
+        $existing->bind_param('i', $id);
+        $existing->execute();
+        $existingRow = $existing->get_result()->fetch_assoc();
+        $existing->close();
+        $imagePath = normalize_storage_image_path($existingRow['image_path'] ?? '');
     }
 
     if ($savedImagePath === '' && (preg_match('/^blob:/i', $imagePath) || stripos($imagePath, 'data:image/') !== false)) {
@@ -302,4 +311,3 @@ send_json(405, [
     'status' => 'error',
     'message' => 'Metodo no permitido'
 ]);
-?>

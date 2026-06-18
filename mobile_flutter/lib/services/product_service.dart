@@ -11,15 +11,38 @@ class ProductService {
   static String get _endpoint => apiUrl(baseUrl, 'products.php');
   static String get _reservationsEndpoint => apiUrl(baseUrl, 'reservations.php');
 
-  /// Helper method to clean raw string data before JSON decoding
-  /// This prevents FormatException caused by accidental leading characters (e.g. spaces, commas, BOM)
   static String _cleanResponseBody(String body) {
     if (body.isEmpty) return '{}';
-    String cleaned = body.trim();
-    if (cleaned.contains('{')) {
-      cleaned = cleaned.substring(cleaned.indexOf('{'));
+    final cleaned = body.trim();
+    final jsonStartIndex = cleaned.indexOf('{');
+    if (jsonStartIndex != -1) {
+      return cleaned.substring(jsonStartIndex);
     }
-    return cleaned;
+    return '{}';
+  }
+
+  static dynamic _decodeJson(http.Response response) {
+    final body = utf8.decode(response.bodyBytes, allowMalformed: true);
+    return jsonDecode(_cleanResponseBody(body));
+  }
+
+  static Map<String, dynamic> _parseResponse(http.Response response) {
+    try {
+      final jsonResponse = _decodeJson(response);
+      return {
+        'success': response.statusCode >= 200 &&
+            response.statusCode < 300 &&
+            jsonResponse['status'] == 'success',
+        'message': jsonResponse['message'] ?? 'Operacion completada',
+        'data': jsonResponse['data'],
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error al procesar respuesta del servidor: $e',
+        'data': null,
+      };
+    }
   }
 
   static Future<Map<String, dynamic>> reserveProduct({
@@ -42,9 +65,17 @@ class ProductService {
             }))
         .timeout(apiTimeout, onTimeout: () => throw Exception('Connection timeout'));
 
-    final cleanedBody = _cleanResponseBody(response.body);
-    final jsonResponse = jsonDecode(cleanedBody);
-    return jsonResponse;
+    try {
+      final jsonResponse = _decodeJson(response);
+      return jsonResponse is Map<String, dynamic>
+          ? jsonResponse
+          : Map<String, dynamic>.from(jsonResponse as Map);
+    } catch (e) {
+      return {
+        'status': 'error',
+        'message': 'Error al procesar respuesta: $e',
+      };
+    }
   }
 
   static Future<Map<String, dynamic>> releaseReservation({
@@ -63,9 +94,17 @@ class ProductService {
             }))
         .timeout(apiTimeout, onTimeout: () => throw Exception('Connection timeout'));
 
-    final cleanedBody = _cleanResponseBody(response.body);
-    final jsonResponse = jsonDecode(cleanedBody);
-    return jsonResponse;
+    try {
+      final jsonResponse = _decodeJson(response);
+      return jsonResponse is Map<String, dynamic>
+          ? jsonResponse
+          : Map<String, dynamic>.from(jsonResponse as Map);
+    } catch (e) {
+      return {
+        'status': 'error',
+        'message': 'Error al procesar respuesta: $e',
+      };
+    }
   }
 
   static Future<Map<String, dynamic>> confirmReservation({
@@ -84,9 +123,17 @@ class ProductService {
             }))
         .timeout(apiTimeout, onTimeout: () => throw Exception('Connection timeout'));
 
-    final cleanedBody = _cleanResponseBody(response.body);
-    final jsonResponse = jsonDecode(cleanedBody);
-    return jsonResponse;
+    try {
+      final jsonResponse = _decodeJson(response);
+      return jsonResponse is Map<String, dynamic>
+          ? jsonResponse
+          : Map<String, dynamic>.from(jsonResponse as Map);
+    } catch (e) {
+      return {
+        'status': 'error',
+        'message': 'Error al procesar respuesta: $e',
+      };
+    }
   }
 
   static Future<List<Product>> fetchProducts() async {
@@ -100,8 +147,7 @@ class ProductService {
       onTimeout: () => throw Exception('Connection timeout'),
     );
 
-    final cleanedBody = _cleanResponseBody(response.body);
-    final jsonResponse = jsonDecode(cleanedBody);
+    final jsonResponse = _decodeJson(response);
     if (response.statusCode != 200 || jsonResponse['status'] != 'success') {
       throw Exception(
           jsonResponse['message'] ?? 'No se pudieron cargar productos');
@@ -210,16 +256,4 @@ class ProductService {
 
     return _parseResponse(response);
   }
-
-  static Map<String, dynamic> _parseResponse(http.Response response) {
-    final cleanedBody = _cleanResponseBody(response.body);
-    final jsonResponse = jsonDecode(cleanedBody);
-    return {
-      'success': response.statusCode >= 200 &&
-          response.statusCode < 300 &&
-          jsonResponse['status'] == 'success',
-      'message': jsonResponse['message'] ?? 'Operacion completada',
-      'data': jsonResponse['data'],
-    };
-  } 
 }

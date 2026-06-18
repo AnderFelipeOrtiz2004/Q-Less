@@ -125,7 +125,14 @@ class UserService {
   }
 
   static dynamic _decodeJson(http.Response response) {
-    final body = utf8.decode(response.bodyBytes, allowMalformed: true);
-    return jsonDecode(_cleanResponseBody(body));
+    try {
+      final body = utf8.decode(response.bodyBytes, allowMalformed: true);
+      return jsonDecode(_cleanResponseBody(body));
+    } catch (e) {
+      return {
+        'status': 'error',
+        'message': 'Respuesta inválida del servidor. Intenta de nuevo.',
+      };
+    }
   }
 }

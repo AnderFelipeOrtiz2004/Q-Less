@@ -63,6 +63,7 @@ class Product {
   }
 
   Map<String, dynamic> toJson({int? fallbackUserId}) {
+    final relativePath = _relativeImagePath();
     return {
       if (id > 0) 'id': id,
       'nombre': nombre,
@@ -70,9 +71,34 @@ class Product {
       'categoria': categoria,
       'precio': precio,
       'stock': stock,
-      'image_path': imagePath.isNotEmpty ? imagePath : imageUrl,
+      if (relativePath.isNotEmpty) 'image_path': relativePath,
       'user_id': userId ?? fallbackUserId ?? 1,
     };
+  }
+
+  String _relativeImagePath() {
+    final path = imagePath.trim();
+    if (path.isNotEmpty) {
+      if (path.contains('storage/products/')) {
+        return path.substring(path.indexOf('storage/products/'));
+      }
+      if (path.startsWith('storage/')) {
+        return path;
+      }
+      if (!path.startsWith('http') && !path.startsWith('blob:')) {
+        return path;
+      }
+    }
+
+    final url = imageUrl.trim();
+    if (url.contains('storage/products/')) {
+      return url.substring(url.indexOf('storage/products/'));
+    }
+    if (url.startsWith('storage/')) {
+      return url;
+    }
+
+    return '';
   }
   
   /// Returns a copy of this product with optional updated fields.

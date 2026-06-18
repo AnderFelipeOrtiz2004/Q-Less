@@ -114,6 +114,7 @@ function ensure_users_table(mysqli $conn): void
     ensure_users_commerce_columns($conn);
     migrate_legacy_usuarios_table($conn);
     sync_users_display_names($conn);
+    sync_users_display_names_v2($conn);
 }
 
 function ensure_users_commerce_columns(mysqli $conn): void
@@ -306,6 +307,130 @@ function ensure_ordenes_table(mysqli $conn): void
             @$conn->query("ALTER TABLE ordenes ADD COLUMN $column $definition");
         }
     }
+
+    migrate_ordenes_user_ids_to_users($conn);
+}
+
+function migrate_ordenes_user_ids_to_users(mysqli $conn): void
+{
+    $flagFile = __DIR__ . '/storage/.ordenes_users_sync_v2';
+    if (is_file($flagFile)) {
+        return;
+    }
+
+    $legacy = $conn->query("SHOW TABLES LIKE 'usuarios'");
+    if (!$legacy || $legacy->num_rows === 0) {
+        @file_put_contents($flagFile, date('c'));
+        return;
+    }
+
+    $columns = [];
+    $result = $conn->query('SHOW COLUMNS FROM usuarios');
+    if (!$result) {
+        return;
+    }
+    while ($row = $result->fetch_assoc()) {
+        $columns[$row['Field']] = true;
+    }
+
+    $emailCol = isset($columns['correo']) ? 'correo' : (isset($columns['email']) ? 'email' : null);
+    if ($emailCol === null) {
+        @file_put_contents($flagFile, date('c'));
+        return;
+    }
+
+    @$conn->query(
+        "UPDATE ordenes o
+         INNER JOIN usuarios leg ON leg.id = o.user_id
+         INNER JOIN users u ON LOWER(TRIM(u.email)) = LOWER(TRIM(leg.$emailCol))
+         SET o.user_id = u.id
+         WHERE o.user_id <> u.id"
+    );
+
+    @file_put_contents($flagFile, date('c'));
+}
+
+function normalize_storage_image_path(?string $path): string
+{
+    $path = trim((string) $path);
+    if ($path === '') {
+        return '';
+    }
+
+    if (preg_match('#storage/(products|avatars)/[^\s?]+#i', $path, $matches)) {
+        return $matches[0];
+    }
+
+    if (str_starts_with($path, 'storage/')) {
+        return $path;
+    }
+
+    if (preg_match('/^blob:/i', $path) || stripos($path, 'data:image/') !== false) {
+        return '';
+    }
+
+    return $path;
+}
+
+function legacy_usuarios_name_expr(string $alias = 'leg'): string
+{
+    global $conn;
+
+    $legacy = $conn->query("SHOW TABLES LIKE 'usuarios'");
+    if (!$legacy || $legacy->num_rows === 0) {
+        return 'NULL';
+    }
+
+    $columns = [];
+    $result = $conn->query('SHOW COLUMNS FROM usuarios');
+    if (!$result) {
+        return 'NULL';
+    }
+    while ($row = $result->fetch_assoc()) {
+        $columns[$row['Field']] = true;
+    }
+
+    $parts = [];
+    if (isset($columns['nombre'])) {
+        $parts[] = "NULLIF(TRIM($alias.nombre), '')";
+    }
+    if (isset($columns['name'])) {
+        $parts[] = "NULLIF(TRIM($alias.name), '')";
+    }
+    if (isset($columns['correo'])) {
+        $parts[] = "NULLIF(TRIM($alias.correo), '')";
+    }
+    if (isset($columns['email'])) {
+        $parts[] = "NULLIF(TRIM($alias.email), '')";
+    }
+
+    return $parts === [] ? 'NULL' : 'COALESCE(' . implode(', ', $parts) . ')';
+}
+
+function orders_buyer_name_sql_expr(): string
+{
+    global $conn;
+
+    $usersExpr = users_name_sql_expr('u', "''");
+    $legacyExpr = legacy_usuarios_name_expr('leg');
+    $legacyTable = $conn->query("SHOW TABLES LIKE 'usuarios'");
+    $hasLegacy = $legacyTable && $legacyTable->num_rows > 0;
+
+    if ($hasLegacy) {
+        return "COALESCE(NULLIF($usersExpr, ''), $legacyExpr, CONCAT('Usuario ', o.user_id))";
+    }
+
+    return "COALESCE(NULLIF($usersExpr, ''), CONCAT('Usuario ', o.user_id))";
+}
+
+function order_buyer_is_eligible(array $row): bool
+{
+    $email = strtolower(trim((string) ($row['user_email'] ?? '')));
+    $verified = intval($row['email_verified'] ?? 0) === 1;
+
+    return $email !== ''
+        && is_gmail_email($email)
+        && $verified;
 }
 
 function user_can_purchase(mysqli $conn, int $userId): array
@@ -434,6 +559,47 @@ function sync_users_display_names(mysqli $conn): void
     @file_put_contents($flagFile, date('c'));
 }
 
+function sync_users_display_names_v2(mysqli $conn): void
+{
+    $flagFile = __DIR__ . '/storage/.users_names_sync_v2';
+    if (is_file($flagFile)) {
+        return;
+    }
+
+    if (table_has_column($conn, 'users', 'name') && table_has_column($conn, 'users', 'email')) {
+        @$conn->query(
+            "UPDATE users
+             SET name = SUBSTRING_INDEX(email, '@', 1)
+             WHERE name IS NULL OR TRIM(name) = ''"
+        );
+    }
+
+    $legacy = $conn->query("SHOW TABLES LIKE 'usuarios'");
+    if ($legacy && $legacy->num_rows > 0) {
+        $columns = [];
+        $result = $conn->query('SHOW COLUMNS FROM usuarios');
+        while ($row = $result->fetch_assoc()) {
+            $columns[$row['Field']] = true;
+        }
+
+        $emailCol = isset($columns['correo']) ? 'correo' : (isset($columns['email']) ? 'email' : null);
+        $nameCol = isset($columns['nombre']) ? 'nombre' : (isset($columns['name']) ? 'name' : null);
+
+        if ($emailCol !== null && $nameCol !== null) {
+            @$conn->query(
+                "UPDATE users u
+                 INNER JOIN usuarios leg ON LOWER(TRIM(u.email)) = LOWER(TRIM(leg.$emailCol))
+                 SET u.name = leg.$nameCol
+                 WHERE (u.name IS NULL OR TRIM(u.name) = '')
+                   AND leg.$nameCol IS NOT NULL
+                   AND TRIM(leg.$nameCol) <> ''"
+            );
+        }
+    }
+
+    @file_put_contents($flagFile, date('c'));
+}
+
 function format_order_row(array $row): array
 {
     $row['product_image_url'] = resolve_image_url($row['product_image_url'] ?? null);
@@ -442,15 +608,19 @@ function format_order_row(array $row): array
     $userEmail = trim((string) ($row['user_email'] ?? ''));
     $userId = (int) ($row['user_id'] ?? 0);
 
-    if ($userName === '') {
+    if ($userEmail === '' && isset($row['correo'])) {
+        $userEmail = trim((string) $row['correo']);
+        $row['user_email'] = $userEmail;
+    }
+
+    if ($userName === '' || preg_match('/^Usuario\s+\d+$/i', $userName)) {
         $row['user_name'] = $userEmail !== ''
             ? $userEmail
             : ($userId > 0 ? 'Usuario ' . $userId : 'Usuario');
     }
 
-    if ($userEmail === '' && isset($row['correo'])) {
-        $row['user_email'] = (string) $row['correo'];
-    }
+    $row['email_verified'] = intval($row['email_verified'] ?? 0) === 1;
+    $row['buyer_eligible'] = order_buyer_is_eligible($row);
 
     return $row;
 }

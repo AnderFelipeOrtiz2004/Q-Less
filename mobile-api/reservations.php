@@ -9,7 +9,7 @@ header('Pragma: no-cache');
 
 function send_json($statusCode, $payload) {
     http_response_code($statusCode);
-    echo json_encode($payload);
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     exit();
 }
 
@@ -98,6 +98,15 @@ if ($method === 'POST' && $action === 'create') {
 
     if ($userId <= 0 || $productId <= 0 || $quantity <= 0) {
         send_json(400, ['status' => 'error', 'message' => 'Datos invalidos']);
+    }
+
+    $purchaseCheck = user_can_purchase($conn, $userId);
+    if (!$purchaseCheck['ok']) {
+        send_json(403, [
+            'status' => 'error',
+            'message' => $purchaseCheck['message'],
+            'code' => $purchaseCheck['code'] ?? null,
+        ]);
     }
 
     $conn->begin_transaction();
@@ -299,4 +308,3 @@ if ($method === 'POST' && $action === 'confirm') {
 }
 
 send_json(400, ['status' => 'error', 'message' => 'Accion no valida']);
-?>
