@@ -351,8 +351,9 @@ if ($method === 'GET' && $action === 'get_pending_orders') {
         send_json(403, ['status' => 'error', 'message' => 'No autorizado']);
     }
 
+    $userNameExpr = users_name_sql_expr('u', "CONCAT('Usuario ', o.user_id)");
     $res = $conn->query(
-        "SELECT o.*, u.name AS user_name, u.email AS user_email
+        "SELECT o.*, $userNameExpr AS user_name, u.email AS user_email
          FROM ordenes o
          LEFT JOIN users u ON u.id = o.user_id
          WHERE o.status = 'pendiente'
@@ -374,8 +375,9 @@ if ($method === 'GET' && $action === 'get_all_orders') {
         send_json(403, ['status' => 'error', 'message' => 'No autorizado']);
     }
 
+    $userNameExpr = users_name_sql_expr('u', "CONCAT('Usuario ', o.user_id)");
     $res = $conn->query(
-        "SELECT o.*, u.name AS user_name, u.email AS user_email
+        "SELECT o.*, $userNameExpr AS user_name, u.email AS user_email
          FROM ordenes o
          LEFT JOIN users u ON u.id = o.user_id
          ORDER BY o.created_at DESC"

@@ -113,6 +113,7 @@ function ensure_users_table(mysqli $conn): void
     ensure_users_profile_columns($conn);
     ensure_users_commerce_columns($conn);
     migrate_legacy_usuarios_table($conn);
+    sync_users_display_names($conn);
 }
 
 function ensure_users_commerce_columns(mysqli $conn): void
@@ -129,10 +130,34 @@ function ensure_users_commerce_columns(mysqli $conn): void
         }
     }
 
+    ensure_users_terms_columns($conn);
+
     $flagFile = __DIR__ . '/storage/.users_commerce_v1';
     if (!is_file($flagFile)) {
         @$conn->query('UPDATE users SET email_verified = 1');
         @$conn->query("UPDATE users SET purchases_enabled = 1 WHERE LOWER(role) = 'admin' OR LOWER(COALESCE(rol, '')) = 'admin'");
+        @file_put_contents($flagFile, date('c'));
+    }
+}
+
+function ensure_users_terms_columns(mysqli $conn): void
+{
+    $columns = [
+        'terms_accepted' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'terms_accepted_at' => 'DATETIME NULL',
+        'privacy_version' => "VARCHAR(20) NULL DEFAULT '1.0'",
+    ];
+
+    foreach ($columns as $column => $definition) {
+        $res = $conn->query("SHOW COLUMNS FROM users LIKE '$column'");
+        if ($res && $res->num_rows === 0) {
+            @$conn->query("ALTER TABLE users ADD COLUMN $column $definition");
+        }
+    }
+
+    $flagFile = __DIR__ . '/storage/.users_terms_v1';
+    if (!is_file($flagFile)) {
+        @$conn->query('UPDATE users SET terms_accepted = 1, privacy_version = \'1.0\' WHERE terms_accepted = 0');
         @file_put_contents($flagFile, date('c'));
     }
 }
@@ -316,9 +341,117 @@ function user_can_purchase(mysqli $conn, int $userId): array
     return ['ok' => true, 'user' => $user];
 }
 
+function table_has_column(mysqli $conn, string $table, string $column): bool
+{
+    static $cache = [];
+    $key = $table . '.' . $column;
+    if (array_key_exists($key, $cache)) {
+        return $cache[$key];
+    }
+
+    $safeTable = preg_replace('/[^a-z0-9_]/i', '', $table);
+    $safeColumn = preg_replace('/[^a-z0-9_]/i', '', $column);
+    $res = $conn->query("SHOW COLUMNS FROM `$safeTable` LIKE '$safeColumn'");
+    $cache[$key] = $res && $res->num_rows > 0;
+
+    return $cache[$key];
+}
+
+function users_role_sql_expr(string $alias = ''): string
+{
+    global $conn;
+
+    $prefix = $alias !== '' ? $alias . '.' : '';
+    $hasRole = table_has_column($conn, 'users', 'role');
+    $hasRol = table_has_column($conn, 'users', 'rol');
+
+    if ($hasRole && $hasRol) {
+        return "COALESCE(NULLIF({$prefix}role, ''), NULLIF({$prefix}rol, ''), 'aprendiz')";
+    }
+    if ($hasRole) {
+        return "COALESCE(NULLIF({$prefix}role, ''), 'aprendiz')";
+    }
+    if ($hasRol) {
+        return "COALESCE(NULLIF({$prefix}rol, ''), 'aprendiz')";
+    }
+
+    return "'aprendiz'";
+}
+
+function users_name_sql_expr(string $alias = 'u', string $fallbackIdExpr = ''): string
+{
+    global $conn;
+
+    $prefix = $alias !== '' ? $alias . '.' : '';
+    $parts = [];
+
+    if (table_has_column($conn, 'users', 'name')) {
+        $parts[] = "NULLIF(TRIM({$prefix}name), '')";
+    }
+    if (table_has_column($conn, 'users', 'nombre')) {
+        $parts[] = "NULLIF(TRIM({$prefix}nombre), '')";
+    }
+    if (table_has_column($conn, 'users', 'email')) {
+        $parts[] = "NULLIF(TRIM({$prefix}email), '')";
+    }
+
+    $fallback = $fallbackIdExpr !== ''
+        ? $fallbackIdExpr
+        : ($alias !== '' ? "CONCAT('Usuario ', {$alias}.id)" : "CONCAT('Usuario ', o.user_id)");
+
+    if ($parts === []) {
+        return $fallback;
+    }
+
+    return 'COALESCE(' . implode(', ', $parts) . ", $fallback)";
+}
+
+function sync_users_display_names(mysqli $conn): void
+{
+    $flagFile = __DIR__ . '/storage/.users_names_sync_v1';
+    if (is_file($flagFile)) {
+        return;
+    }
+
+    if (table_has_column($conn, 'users', 'nombre') && table_has_column($conn, 'users', 'name')) {
+        @$conn->query(
+            "UPDATE users
+             SET name = nombre
+             WHERE (name IS NULL OR TRIM(name) = '')
+               AND nombre IS NOT NULL
+               AND TRIM(nombre) <> ''"
+        );
+    }
+
+    if (table_has_column($conn, 'users', 'name') && table_has_column($conn, 'users', 'email')) {
+        @$conn->query(
+            "UPDATE users
+             SET name = SUBSTRING_INDEX(email, '@', 1)
+             WHERE name IS NULL OR TRIM(name) = ''"
+        );
+    }
+
+    @file_put_contents($flagFile, date('c'));
+}
+
 function format_order_row(array $row): array
 {
     $row['product_image_url'] = resolve_image_url($row['product_image_url'] ?? null);
+
+    $userName = trim((string) ($row['user_name'] ?? ''));
+    $userEmail = trim((string) ($row['user_email'] ?? ''));
+    $userId = (int) ($row['user_id'] ?? 0);
+
+    if ($userName === '') {
+        $row['user_name'] = $userEmail !== ''
+            ? $userEmail
+            : ($userId > 0 ? 'Usuario ' . $userId : 'Usuario');
+    }
+
+    if ($userEmail === '' && isset($row['correo'])) {
+        $row['user_email'] = (string) $row['correo'];
+    }
+
     return $row;
 }
 
@@ -657,7 +790,7 @@ function load_local_env(string $key): string
                 }
                 $parts = explode('=', $line, 2);
                 if (count($parts) === 2) {
-                    $cache[trim($parts[0])] = trim($parts[1]);
+                    $cache[trim($parts[0])] = trim($parts[1], " \t\"'");
                 }
             }
         }

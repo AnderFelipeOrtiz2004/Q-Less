@@ -1,0 +1,271 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../config/constants.dart';
+import '../models/order.dart';
+import 'network_status_service.dart';
+import 'server_config_service.dart';
+
+class OrderService {
+  static String get baseUrl => getBaseUrl();
+  static String get _endpoint => apiUrl(baseUrl, 'orders.php');
+
+  static Future<String?> _prepareConnection() async {
+    if (!await NetworkStatusService.hasConnection()) {
+      return NetworkStatusService.noConnectionMessage;
+    }
+    final ok = await ServerConfigService.ensureConnectedOnMobile();
+    if (!ok) {
+      return NetworkStatusService.serverUnreachableMessage;
+    }
+    return null;
+  }
+
+  /// Create a new order (purchase)
+  static Future<Map<String, dynamic>> createOrder({
+    required int userId,
+    required int productId,
+    required String productName,
+    required int quantity,
+    required int price,
+    required String productImageUrl,
+    int? reservationId,
+  }) async {
+    final body = {
+      'user_id': userId,
+      'product_id': productId,
+      'product_name': productName,
+      'quantity': quantity,
+      'price': price,
+      'total_price': price * quantity,
+      'product_image_url': productImageUrl,
+      if (reservationId != null) 'reservation_id': reservationId,
+      'action': 'create',
+    };
+
+    final networkError = await _prepareConnection();
+    if (networkError != null) {
+      return {'success': false, 'message': networkError, 'data': null};
+    }
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse(_endpoint),
+            headers: const {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(
+            apiTimeout,
+            onTimeout: () => throw Exception('Connection timeout'),
+          );
+
+      return _parseResponse(response);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error: ${e.toString()}',
+        'data': null,
+      };
+    }
+  }
+
+  /// Fetch user orders
+  static Future<List<Order>> fetchUserOrders({
+    required int userId,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_endpoint?user_id=$userId&action=get_user_orders'),
+        headers: const {
+          'Accept': 'application/json',
+        },
+      ).timeout(
+        apiTimeout,
+        onTimeout: () => throw Exception('Connection timeout'),
+      );
+
+      final body = utf8.decode(response.bodyBytes, allowMalformed: true);
+      final cleanedBody = _cleanResponseBody(body);
+      final jsonResponse = jsonDecode(cleanedBody);
+      if (response.statusCode != 200 || jsonResponse['status'] != 'success') {
+        throw Exception(
+            jsonResponse['message'] ?? 'No se pudieron cargar órdenes');
+      }
+
+      final items = jsonResponse['data'] as List<dynamic>? ?? [];
+      return items
+          .map((item) => Order.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Error fetching orders: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> approveOrder({
+    required int adminUserId,
+    required String role,
+    required int orderId,
+  }) async {
+    return _postAction(
+      action: 'approve',
+      body: {
+        'user_id': adminUserId,
+        'role': role,
+        'order_id': orderId,
+      },
+    );
+  }
+
+  static Future<Map<String, dynamic>> toggleUserPurchases({
+    required int adminUserId,
+    required String role,
+    required int targetUserId,
+    required bool enabled,
+  }) async {
+    final url = Uri.parse(apiUrl(getBaseUrl(), 'users.php'));
+    try {
+      final response = await http.post(
+        url,
+        headers: const {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'action': 'toggle_purchases',
+          'role': role,
+          'target_user_id': targetUserId,
+          'enabled': enabled ? 1 : 0,
+        }),
+      ).timeout(apiTimeout);
+      return _parseResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': 'Error: ${e.toString()}', 'data': null};
+    }
+  }
+
+  static Future<Map<String, dynamic>> rejectOrder({
+    required int adminUserId,
+    required String role,
+    required int orderId,
+  }) async {
+    return _postAction(
+      action: 'reject',
+      body: {
+        'user_id': adminUserId,
+        'role': role,
+        'order_id': orderId,
+      },
+    );
+  }
+
+  static Future<List<Order>> fetchPendingOrders({
+    required int userId,
+    required String role,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$_endpoint?action=get_pending_orders&user_id=$userId&role=$role',
+      );
+      final response = await http.get(uri, headers: const {'Accept': 'application/json'})
+          .timeout(apiTimeout);
+      final jsonResponse = jsonDecode(_cleanResponseBody(response.body));
+      if (response.statusCode != 200 || jsonResponse['status'] != 'success') {
+        throw Exception(jsonResponse['message'] ?? 'No se pudieron cargar pendientes');
+      }
+      final items = jsonResponse['data'] as List<dynamic>? ?? [];
+      return items.map((item) => Order.fromJson(item as Map<String, dynamic>)).toList();
+    } catch (e) {
+      throw Exception('Error fetching pending orders: $e');
+    }
+  }
+
+  static Future<Map<String, dynamic>> _postAction({
+    required String action,
+    required Map<String, dynamic> body,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse(_endpoint),
+            headers: const {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({...body, 'action': action}),
+          )
+          .timeout(apiTimeout);
+      return _parseResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': 'Error: ${e.toString()}', 'data': null};
+    }
+  }
+
+  static Future<List<Order>> fetchAllOrders({
+    required int userId,
+    required String role,
+  }) async {
+    try {
+      final uri = Uri.parse(
+        '$_endpoint?action=get_all_orders&user_id=$userId&role=$role',
+      );
+      final response = await http.get(
+        uri,
+        headers: const {
+          'Accept': 'application/json',
+        },
+      ).timeout(
+        apiTimeout,
+        onTimeout: () => throw Exception('Connection timeout'),
+      );
+
+      final body = utf8.decode(response.bodyBytes, allowMalformed: true);
+      final cleanedBody = _cleanResponseBody(body);
+      final jsonResponse = jsonDecode(cleanedBody);
+      if (response.statusCode != 200 || jsonResponse['status'] != 'success') {
+        throw Exception(
+          jsonResponse['message'] ?? 'No se pudieron cargar las compras',
+        );
+      }
+
+      final items = jsonResponse['data'] as List<dynamic>? ?? [];
+      return items
+          .map((item) => Order.fromJson(item as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Error fetching admin orders: $e');
+    }
+  }
+
+  static Map<String, dynamic> _parseResponse(http.Response response) {
+    try {
+      final body = utf8.decode(response.bodyBytes, allowMalformed: true);
+      final cleanedBody = _cleanResponseBody(body);
+      final jsonResponse = jsonDecode(cleanedBody);
+      return {
+        'success': response.statusCode >= 200 &&
+            response.statusCode < 300 &&
+            jsonResponse['status'] == 'success',
+        'message': jsonResponse['message'] ?? 'Operación completada',
+        'data': jsonResponse['data'],
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Error al procesar respuesta: $e',
+        'data': null,
+      };
+    }
+  }
+
+  static String _cleanResponseBody(String body) {
+    if (body.isEmpty) return '{}';
+    String cleaned = body.trim();
+    if (cleaned.contains('{')) {
+      cleaned = cleaned.substring(cleaned.indexOf('{'));
+    }
+    return cleaned;
+  }
+}
