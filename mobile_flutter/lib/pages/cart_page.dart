@@ -446,7 +446,7 @@ class _CartPageState extends State<CartPage> {
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            'Tus compras aún no están habilitadas. Un administrador debe activarlas antes de enviar solicitudes.',
+                            'Tu compra quedará pendiente hasta que un administrador habilite tus compras. Luego podrás enviar la solicitud desde el carrito.',
                             style: TextStyle(fontSize: 12, color: Colors.black87),
                           ),
                         ),
