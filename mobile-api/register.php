@@ -202,6 +202,8 @@ $mailBody = "Hola {$nombre},\n\n"
     . "Válido por 30 minutos.\n\n— Equipo Q-LESS";
 
 if (!smtp_is_configured()) {
+    $conn->query('DELETE FROM users WHERE id = ' . (int) $newId);
+    $conn->query("DELETE FROM email_verification_codes WHERE email = '" . $conn->real_escape_string($email) . "'");
     send_json(500, [
         'status' => 'error',
         'message' => 'No se pudo enviar el correo. Configura SMTP_USER y SMTP_PASS en Railway.',
