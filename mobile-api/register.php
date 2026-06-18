@@ -76,6 +76,52 @@ if ($action === 'verify_email') {
     ]);
 }
 
+if ($action === 'resend_code') {
+    $email = strtolower(trim((string) ($input['correo'] ?? $input['email'] ?? '')));
+    if (!is_gmail_email($email)) {
+        send_json(400, ['status' => 'error', 'message' => 'Correo Gmail requerido']);
+    }
+
+    $stmt = $conn->prepare('SELECT id, name, email_verified FROM users WHERE email = ? LIMIT 1');
+    $stmt->bind_param('s', $email);
+    $stmt->execute();
+    $user = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$user) {
+        send_json(404, ['status' => 'error', 'message' => 'No hay cuenta con ese correo. Regístrate primero.']);
+    }
+    if (intval($user['email_verified'] ?? 0) === 1) {
+        send_json(400, ['status' => 'error', 'message' => 'Este correo ya está verificado. Inicia sesión.']);
+    }
+
+    $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    $codeHash = password_hash($code, PASSWORD_BCRYPT);
+    $expiresAt = date('Y-m-d H:i:s', strtotime('+30 minutes'));
+
+    $ins = $conn->prepare(
+        'INSERT INTO email_verification_codes (email, code_hash, expires_at) VALUES (?, ?, ?)'
+    );
+    $ins->bind_param('sss', $email, $codeHash, $expiresAt);
+    $ins->execute();
+    $ins->close();
+
+    $nombre = trim((string) ($user['name'] ?? 'Usuario'));
+    $mailBody = "Hola {$nombre},\n\n"
+        . "Tu nuevo código de verificación Gmail para Q-LESS es: {$code}\n\n"
+        . "Válido por 30 minutos.\n\n— Equipo Q-LESS";
+
+    $sent = send_reset_email($email, 'Código de verificación Q-LESS', $mailBody);
+
+    send_json(200, [
+        'status' => 'success',
+        'message' => $sent
+            ? 'Código reenviado. Revisa tu bandeja de Gmail.'
+            : 'No se pudo enviar el correo. Configura SMTP_HOST, SMTP_USER y SMTP_PASS en Railway.',
+        'data' => ['email_sent' => $sent],
+    ]);
+}
+
 $nombre = trim($input['nombre'] ?? $input['name'] ?? '');
 $email = strtolower(trim($input['correo'] ?? $input['email'] ?? ''));
 $password = $input['password'] ?? '';

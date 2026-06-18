@@ -33,9 +33,9 @@ try {
         send_json(400, ['status' => 'error', 'message' => 'Solo puedes iniciar sesión con un correo Gmail.']);
     }
 
+    $roleExpr = users_role_sql_expr();
     $stmt = $conn->prepare(
-        "SELECT id, name, email, password,
-                COALESCE(NULLIF(role, ''), NULLIF(rol, ''), 'aprendiz') AS role,
+        "SELECT id, name, email, password, ($roleExpr) AS role,
                 COALESCE(email_verified, 1) AS email_verified,
                 COALESCE(purchases_enabled, 0) AS purchases_enabled
          FROM users WHERE email = ? LIMIT 1"
@@ -70,7 +70,15 @@ try {
     }
 
     if (!$user || !$valid) {
-        send_json(401, ['status' => 'error', 'message' => 'Credenciales inválidas']);
+        if (!$user) {
+            send_json(401, [
+                'status' => 'error',
+                'message' => 'No existe una cuenta con ese correo. Regístrate primero.',
+                'code' => 'user_not_found',
+            ]);
+        }
+
+        send_json(401, ['status' => 'error', 'message' => 'Contraseña incorrecta']);
     }
 
     if (intval($user['email_verified']) !== 1) {
