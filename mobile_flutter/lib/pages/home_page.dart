@@ -64,6 +64,7 @@ class _HomePageState extends State<HomePage> {
   int _bannerIndex = 0;
   Set<int> _favoriteIds = {};
   bool _purchasesEnabled = false;
+  bool _emailVerified = true;
 
   bool get _isAdmin => widget.userRole.toLowerCase() == 'admin';
 
@@ -87,6 +88,7 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       setState(() {
         _purchasesEnabled = user.purchasesEnabled;
+        _emailVerified = user.emailVerified;
       });
     } catch (_) {}
   }
@@ -384,6 +386,30 @@ class _HomePageState extends State<HomePage> {
       );
       return;
     }
+    if (!_emailVerified) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Debes verificar tu correo Gmail antes de agregar productos al carrito.',
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    if (!_purchasesEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Tus compras aún no están habilitadas. Un administrador debe activarlas.',
+          ),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
     if (product.availableStock <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -507,6 +533,7 @@ class _HomePageState extends State<HomePage> {
           userId: _uid,
           userName: _displayName,
           purchasesEnabled: _purchasesEnabled || _isAdmin,
+          emailVerified: _emailVerified || _isAdmin,
           cartItems: _cartItems,
           onCartUpdate: (items) {
             setState(() {

@@ -26,7 +26,11 @@ class CarritoService {
 
   static Map<String, dynamic> _decodeBody(http.Response response) {
     try {
-      final decoded = json.decode(response.body);
+      final body = utf8.decode(response.bodyBytes, allowMalformed: true);
+      final cleaned = body.trim();
+      final start = cleaned.indexOf('{');
+      final jsonText = start >= 0 ? cleaned.substring(start) : cleaned;
+      final decoded = json.decode(jsonText);
       if (decoded is Map<String, dynamic>) {
         return decoded;
       }

@@ -80,9 +80,12 @@ class ServerConfigService {
 
   static Future<bool> _healthOk(String base) async {
     try {
+      final timeout = isOnlineApiMode
+          ? const Duration(seconds: 25)
+          : const Duration(seconds: 8);
       final response = await http
           .get(Uri.parse(apiUrl(base, 'health.php')))
-          .timeout(const Duration(seconds: 8));
+          .timeout(timeout);
       if (response.statusCode < 200 || response.statusCode >= 300) {
         return false;
       }

@@ -1,7 +1,7 @@
 name: q_less_prototype
 description: Q-Less app prototype with login and register screens.
 publish_to: none
-version: 0.4.5+8
+version: 2.8.1+29
 environment:
   sdk: '>=2.19.0 <4.0.0'
 
@@ -28,7 +28,7 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
-  ios: true
+  ios: false
   image_path: assets/images/icon_ql.png
   adaptive_icon_background: "#76C11F"
   adaptive_icon_foreground: assets/images/icon_ql.png
@@ -52,5 +52,3 @@ flutter:
     - .env
     - assets/images/logo.png
     - assets/images/icon_ql.png
-    - assets/sounds/click.mp3
-    - assets/sounds/success.mp3

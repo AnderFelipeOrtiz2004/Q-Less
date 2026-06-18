@@ -10,7 +10,7 @@ header('Pragma: no-cache');
 
 function send_json($statusCode, $payload) {
     http_response_code($statusCode);
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
     exit();
 }
 
@@ -351,12 +351,26 @@ if ($method === 'GET' && $action === 'get_pending_orders') {
         send_json(403, ['status' => 'error', 'message' => 'No autorizado']);
     }
 
-    $userNameExpr = users_name_sql_expr('u', "CONCAT('Usuario ', o.user_id)");
+    $userNameExpr = orders_buyer_name_sql_expr();
+    $legacyJoin = '';
+    $legacyCheck = $conn->query("SHOW TABLES LIKE 'usuarios'");
+    if ($legacyCheck && $legacyCheck->num_rows > 0) {
+        $legacyJoin = 'LEFT JOIN usuarios leg ON leg.id = o.user_id';
+    }
+
     $res = $conn->query(
-        "SELECT o.*, $userNameExpr AS user_name, u.email AS user_email
+        "SELECT o.*, $userNameExpr AS user_name, u.email AS user_email,
+                COALESCE(u.email_verified, 0) AS email_verified
          FROM ordenes o
          LEFT JOIN users u ON u.id = o.user_id
+         $legacyJoin
          WHERE o.status = 'pendiente'
+           AND u.id IS NOT NULL
+           AND COALESCE(u.email_verified, 0) = 1
+           AND (
+             LOWER(u.email) LIKE '%@gmail.com'
+             OR LOWER(u.email) LIKE '%@googlemail.com'
+           )
          ORDER BY o.created_at ASC"
     );
     if (!$res) {
@@ -375,11 +389,19 @@ if ($method === 'GET' && $action === 'get_all_orders') {
         send_json(403, ['status' => 'error', 'message' => 'No autorizado']);
     }
 
-    $userNameExpr = users_name_sql_expr('u', "CONCAT('Usuario ', o.user_id)");
+    $userNameExpr = orders_buyer_name_sql_expr();
+    $legacyJoin = '';
+    $legacyCheck = $conn->query("SHOW TABLES LIKE 'usuarios'");
+    if ($legacyCheck && $legacyCheck->num_rows > 0) {
+        $legacyJoin = 'LEFT JOIN usuarios leg ON leg.id = o.user_id';
+    }
+
     $res = $conn->query(
-        "SELECT o.*, $userNameExpr AS user_name, u.email AS user_email
+        "SELECT o.*, $userNameExpr AS user_name, u.email AS user_email,
+                COALESCE(u.email_verified, 0) AS email_verified
          FROM ordenes o
          LEFT JOIN users u ON u.id = o.user_id
+         $legacyJoin
          ORDER BY o.created_at DESC"
     );
     if (!$res) {

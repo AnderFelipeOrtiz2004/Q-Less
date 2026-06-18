@@ -171,7 +171,8 @@ class OrderService {
       );
       final response = await http.get(uri, headers: const {'Accept': 'application/json'})
           .timeout(apiTimeout);
-      final jsonResponse = jsonDecode(_cleanResponseBody(response.body));
+      final body = utf8.decode(response.bodyBytes, allowMalformed: true);
+      final jsonResponse = jsonDecode(_cleanResponseBody(body));
       if (response.statusCode != 200 || jsonResponse['status'] != 'success') {
         throw Exception(jsonResponse['message'] ?? 'No se pudieron cargar pendientes');
       }

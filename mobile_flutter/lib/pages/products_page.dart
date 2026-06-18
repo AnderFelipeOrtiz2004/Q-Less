@@ -556,7 +556,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     _imagePathController = TextEditingController(
       text: product?.imagePath.isNotEmpty == true
           ? product!.imagePath
-          : product?.imageUrl ?? '',
+          : _relativePathFromUrl(product?.imageUrl ?? ''),
     );
     _categoryController = TextEditingController(text: product?.categoria ?? '');
     _newCategoryController = TextEditingController();
@@ -613,6 +613,36 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     });
   }
 
+  String _relativePathFromUrl(String value) {
+    final trimmed = value.trim();
+    if (trimmed.contains('storage/products/')) {
+      return trimmed.substring(trimmed.indexOf('storage/products/'));
+    }
+    if (trimmed.startsWith('storage/')) {
+      return trimmed;
+    }
+    return '';
+  }
+
+  String _imagePathForSave() {
+    if (_pickedImageBytes != null) {
+      return widget.product?.imagePath ?? '';
+    }
+
+    final typed = _imagePathController.text.trim();
+    if (typed.isNotEmpty) {
+      final relative = _relativePathFromUrl(typed);
+      if (relative.isNotEmpty) {
+        return relative;
+      }
+      if (!typed.startsWith('http') && !typed.startsWith('blob:')) {
+        return typed;
+      }
+    }
+
+    return widget.product?.imagePath ?? '';
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -632,6 +662,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     });
 
 final parsedStock = int.parse(_stockController.text.trim());
+    final imagePath = _imagePathForSave();
       final product = Product(
         id: widget.product?.id ?? 0,
         nombre: _nameController.text.trim(),
@@ -640,8 +671,8 @@ final parsedStock = int.parse(_stockController.text.trim());
         precio: int.parse(_priceController.text.trim()),
         stock: parsedStock,
         availableStock: parsedStock,
-      imageUrl: selectedImagePath,
-      imagePath: selectedImagePath,
+      imageUrl: imagePath.isNotEmpty ? imagePath : (widget.product?.imageUrl ?? ''),
+      imagePath: imagePath,
       userId: widget.userId,
     );
 

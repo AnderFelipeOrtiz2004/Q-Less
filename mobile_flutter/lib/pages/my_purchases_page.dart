@@ -143,7 +143,7 @@ class _MyPurchasesPageState extends State<MyPurchasesPage> {
       return const _StatusBadgeStyle(
         bg: Color(0xFFFFEBEE),
         fg: Colors.red,
-        label: 'Rechazada',
+        label: 'El administrador rechazó tu compra',
       );
     }
     if (s == 'aprobada') {
