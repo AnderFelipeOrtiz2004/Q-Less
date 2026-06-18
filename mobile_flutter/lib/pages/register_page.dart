@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../config/legal_terms.dart';
 import '../services/index.dart';
 import '../services/sound_service.dart';
 import '../utils/validators.dart';
 import '../widgets/app_text_field.dart';
+import '../widgets/legal_terms_dialog.dart';
 
 /// Registration page with form validation and API integration
 class RegisterPage extends StatefulWidget {
@@ -22,6 +24,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   bool _isLoading = false;
   bool _needsVerification = false;
+  bool _acceptedTerms = false;
   String _errorMessage = '';
   String _selectedRole = 'aprendiz';
 
@@ -96,6 +99,35 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
+    if (!_acceptedTerms) {
+      setState(() {
+        _errorMessage =
+            'Debes aceptar los Términos y la Política de Privacidad para continuar.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_errorMessage),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final termsOk = await showLegalTermsDialog(context);
+    if (!termsOk || !mounted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No se creó la cuenta. Debes aceptar los términos legales.',
+            ),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -106,6 +138,8 @@ class _RegisterPageState extends State<RegisterPage> {
         correo: _correoController.text,
         password: _passwordController.text,
         role: _selectedRole,
+        acceptedTerms: true,
+        privacyVersion: LegalTerms.version,
       );
 
       if (!mounted) return;
@@ -300,6 +334,23 @@ class _RegisterPageState extends State<RegisterPage> {
                           DropdownMenuItem(value: 'instructor', child: Text('Instructor')),
                         ],
                         onChanged: (v) => setState(() => _selectedRole = v ?? 'aprendiz'),
+                      ),
+                      const SizedBox(height: 8),
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: _acceptedTerms,
+                        onChanged: (value) {
+                          setState(() => _acceptedTerms = value == true);
+                        },
+                        title: const Text(
+                          'Acepto los Términos y la Política de Privacidad de Q-LESS.',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                        subtitle: const Text(
+                          'Obligatorio antes de enviar el código a tu Gmail.',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
                       ),
                     ],
                     if (_needsVerification) ...[

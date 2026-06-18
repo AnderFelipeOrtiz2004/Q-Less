@@ -12,7 +12,9 @@ import 'theme/app_theme.dart';
 import 'utils/transition_utils.dart';
 import 'widgets/fade_slide_entry.dart';
 import 'widgets/interactive_scale_button.dart';
+import 'widgets/legal_terms_dialog.dart';
 import 'widgets/splash_gate.dart';
+import 'config/legal_terms.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -214,6 +216,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _loginWithGoogle() async {
     SoundService.playClick();
+
+    final termsOk = await showLegalTermsDialog(context);
+    if (!termsOk || !mounted) return;
+
     setState(() {
       _errorMessage = '';
       _isGoogleLoading = true;
@@ -235,7 +241,11 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('No se pudo obtener el token de Google');
       }
 
-      final response = await AuthService.loginWithGoogle(idToken: idToken);
+      final response = await AuthService.loginWithGoogle(
+        idToken: idToken,
+        acceptedTerms: true,
+        privacyVersion: LegalTerms.version,
+      );
       if (!mounted) return;
 
       if (response['success'] == true) {

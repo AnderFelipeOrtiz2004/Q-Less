@@ -1,12 +1,21 @@
 <?php
 
+function smtp_is_configured(): bool
+{
+    $user = trim(load_local_env('SMTP_USER'));
+    $pass = str_replace(' ', '', trim(load_local_env('SMTP_PASS')));
+    $from = trim(load_local_env('SMTP_FROM')) ?: $user;
+
+    return $user !== '' && $pass !== '' && $from !== '';
+}
+
 function send_reset_email(string $toEmail, string $subject, string $body): bool
 {
     $smtpHost = load_local_env('SMTP_HOST') ?: 'smtp.gmail.com';
     $smtpPort = (int) (load_local_env('SMTP_PORT') ?: '587');
-    $smtpUser = load_local_env('SMTP_USER');
-    $smtpPass = load_local_env('SMTP_PASS');
-    $fromEmail = load_local_env('SMTP_FROM') ?: $smtpUser;
+    $smtpUser = trim(load_local_env('SMTP_USER'));
+    $smtpPass = str_replace(' ', '', trim(load_local_env('SMTP_PASS')));
+    $fromEmail = trim(load_local_env('SMTP_FROM')) ?: $smtpUser;
     $fromName = load_local_env('SMTP_FROM_NAME') ?: 'Q-LESS';
 
     if ($smtpUser === '' || $smtpPass === '' || $fromEmail === '') {

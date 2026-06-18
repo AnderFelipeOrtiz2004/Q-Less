@@ -48,6 +48,8 @@ class AuthService {
     required String correo,
     required String password,
     String role = 'aprendiz',
+    bool acceptedTerms = false,
+    String privacyVersion = '1.0',
   }) async {
     final networkError = await _prepareMobileConnection();
     if (networkError != null) {
@@ -70,6 +72,8 @@ class AuthService {
           'role': ['aprendiz', 'instructor'].contains(role.toLowerCase())
               ? role.toLowerCase()
               : 'aprendiz',
+          'accepted_terms': acceptedTerms,
+          'privacy_version': privacyVersion,
         }),
       ).timeout(
         apiTimeout,
@@ -228,6 +232,8 @@ class AuthService {
 
   static Future<Map<String, dynamic>> loginWithGoogle({
     required String idToken,
+    bool acceptedTerms = false,
+    String privacyVersion = '1.0',
   }) async {
     final networkError = await _prepareMobileConnection();
     if (networkError != null) {
@@ -246,7 +252,11 @@ class AuthService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: jsonEncode({'id_token': idToken}),
+        body: jsonEncode({
+          'id_token': idToken,
+          'accepted_terms': acceptedTerms,
+          'privacy_version': privacyVersion,
+        }),
       ).timeout(apiTimeout);
 
       final jsonResponse = _decodeJsonMap(response);

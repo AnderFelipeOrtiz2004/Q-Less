@@ -17,6 +17,10 @@ try {
 }
 
 $checks['latency_ms'] = (int) round((microtime(true) - $started) * 1000);
+$smtpUser = trim(qless_env('SMTP_USER'));
+$smtpPass = str_replace(' ', '', trim(qless_env('SMTP_PASS')));
+$smtpFrom = trim(qless_env('SMTP_FROM')) ?: $smtpUser;
+$checks['smtp_configured'] = $smtpUser !== '' && $smtpPass !== '' && $smtpFrom !== '';
 
 echo json_encode([
     'status' => $checks['mysql'] ? 'success' : 'error',

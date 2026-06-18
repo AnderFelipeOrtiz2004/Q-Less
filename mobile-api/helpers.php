@@ -130,10 +130,34 @@ function ensure_users_commerce_columns(mysqli $conn): void
         }
     }
 
+    ensure_users_terms_columns($conn);
+
     $flagFile = __DIR__ . '/storage/.users_commerce_v1';
     if (!is_file($flagFile)) {
         @$conn->query('UPDATE users SET email_verified = 1');
         @$conn->query("UPDATE users SET purchases_enabled = 1 WHERE LOWER(role) = 'admin' OR LOWER(COALESCE(rol, '')) = 'admin'");
+        @file_put_contents($flagFile, date('c'));
+    }
+}
+
+function ensure_users_terms_columns(mysqli $conn): void
+{
+    $columns = [
+        'terms_accepted' => 'TINYINT(1) NOT NULL DEFAULT 0',
+        'terms_accepted_at' => 'DATETIME NULL',
+        'privacy_version' => "VARCHAR(20) NULL DEFAULT '1.0'",
+    ];
+
+    foreach ($columns as $column => $definition) {
+        $res = $conn->query("SHOW COLUMNS FROM users LIKE '$column'");
+        if ($res && $res->num_rows === 0) {
+            @$conn->query("ALTER TABLE users ADD COLUMN $column $definition");
+        }
+    }
+
+    $flagFile = __DIR__ . '/storage/.users_terms_v1';
+    if (!is_file($flagFile)) {
+        @$conn->query('UPDATE users SET terms_accepted = 1, privacy_version = \'1.0\' WHERE terms_accepted = 0');
         @file_put_contents($flagFile, date('c'));
     }
 }

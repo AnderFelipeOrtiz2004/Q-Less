@@ -62,13 +62,26 @@ try {
     $stmt->close();
 
     if (!$user) {
+        $acceptedTerms = filter_var(
+            $input['accepted_terms'] ?? $input['terms_accepted'] ?? false,
+            FILTER_VALIDATE_BOOLEAN
+        );
+        if (!$acceptedTerms) {
+            send_json(400, [
+                'status' => 'error',
+                'message' => 'Debes aceptar los Términos y la Política de Privacidad.',
+                'code' => 'terms_not_accepted',
+            ]);
+        }
+
         $role = 'aprendiz';
         $password = password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT);
+        $privacyVersion = trim((string) ($input['privacy_version'] ?? '1.0'));
         $ins = $conn->prepare(
-            'INSERT INTO users (name, email, password, role, email_verified, purchases_enabled)
-             VALUES (?, ?, ?, ?, 1, 0)'
+            'INSERT INTO users (name, email, password, role, email_verified, purchases_enabled, terms_accepted, terms_accepted_at, privacy_version)
+             VALUES (?, ?, ?, ?, 1, 0, 1, NOW(), ?)'
         );
-        $ins->bind_param('ssss', $name, $email, $password, $role);
+        $ins->bind_param('sssss', $name, $email, $password, $role, $privacyVersion);
         if (!$ins->execute()) {
             send_json(500, ['status' => 'error', 'message' => 'No se pudo crear la cuenta con Google']);
         }

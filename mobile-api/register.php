@@ -95,6 +95,14 @@ if ($action === 'resend_code') {
         send_json(400, ['status' => 'error', 'message' => 'Este correo ya está verificado. Inicia sesión.']);
     }
 
+    if (!smtp_is_configured()) {
+        send_json(500, [
+            'status' => 'error',
+            'message' => 'SMTP no configurado. Agrega SMTP_USER y SMTP_PASS en Railway.',
+            'code' => 'smtp_not_configured',
+        ]);
+    }
+
     $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $codeHash = password_hash($code, PASSWORD_BCRYPT);
     $expiresAt = date('Y-m-d H:i:s', strtotime('+30 minutes'));
@@ -117,7 +125,7 @@ if ($action === 'resend_code') {
         'status' => 'success',
         'message' => $sent
             ? 'Código reenviado. Revisa tu bandeja de Gmail.'
-            : 'No se pudo enviar el correo. Configura SMTP_HOST, SMTP_USER y SMTP_PASS en Railway.',
+            : 'No se pudo enviar el correo. Verifica SMTP_USER y SMTP_PASS en Railway.',
         'data' => ['email_sent' => $sent],
     ]);
 }
@@ -126,9 +134,22 @@ $nombre = trim($input['nombre'] ?? $input['name'] ?? '');
 $email = strtolower(trim($input['correo'] ?? $input['email'] ?? ''));
 $password = $input['password'] ?? '';
 $role = strtolower(trim($input['role'] ?? 'aprendiz'));
+$acceptedTerms = filter_var(
+    $input['accepted_terms'] ?? $input['terms_accepted'] ?? false,
+    FILTER_VALIDATE_BOOLEAN
+);
+$privacyVersion = trim((string) ($input['privacy_version'] ?? '1.0'));
 
 if ($nombre === '' || $email === '' || $password === '') {
     send_json(400, ['status' => 'error', 'message' => 'Todos los campos son obligatorios']);
+}
+
+if (!$acceptedTerms) {
+    send_json(400, [
+        'status' => 'error',
+        'message' => 'Debes aceptar los Términos y la Política de Privacidad para crear tu cuenta.',
+        'code' => 'terms_not_accepted',
+    ]);
 }
 
 if (!is_gmail_email($email)) {
@@ -153,9 +174,10 @@ $stmt->close();
 
 $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
 $stmt = $conn->prepare(
-    'INSERT INTO users (name, email, password, role, email_verified, purchases_enabled) VALUES (?, ?, ?, ?, 0, 0)'
+    'INSERT INTO users (name, email, password, role, email_verified, purchases_enabled, terms_accepted, terms_accepted_at, privacy_version)
+     VALUES (?, ?, ?, ?, 0, 0, 1, NOW(), ?)'
 );
-$stmt->bind_param('ssss', $nombre, $email, $hashedPassword, $role);
+$stmt->bind_param('sssss', $nombre, $email, $hashedPassword, $role, $privacyVersion);
 
 if (!$stmt->execute()) {
     send_json(500, ['status' => 'error', 'message' => 'Error al registrar: ' . $conn->error]);
@@ -175,23 +197,42 @@ $ins->execute();
 $ins->close();
 
 $mailBody = "Hola {$nombre},\n\n"
-    . "Tu código de verificación Gmail para Q-LESS es: {$code}\n\n"
+    . "Aceptaste los Términos y la Política de Privacidad de Q-LESS (v{$privacyVersion}).\n\n"
+    . "Tu código de verificación Gmail es: {$code}\n\n"
     . "Válido por 30 minutos.\n\n— Equipo Q-LESS";
+
+if (!smtp_is_configured()) {
+    send_json(500, [
+        'status' => 'error',
+        'message' => 'No se pudo enviar el correo. Configura SMTP_USER y SMTP_PASS en Railway.',
+        'code' => 'smtp_not_configured',
+    ]);
+}
 
 $sent = send_reset_email($email, 'Verifica tu correo Gmail - Q-LESS', $mailBody);
 
+if (!$sent) {
+    $conn->query('DELETE FROM users WHERE id = ' . (int) $newId);
+    $conn->query("DELETE FROM email_verification_codes WHERE email = '" . $conn->real_escape_string($email) . "'");
+    send_json(500, [
+        'status' => 'error',
+        'message' => 'No se pudo enviar el código a Gmail. Revisa SMTP_USER, SMTP_PASS y SMTP_FROM en Railway.',
+        'code' => 'email_send_failed',
+    ]);
+}
+
 send_json(200, [
     'status' => 'success',
-    'message' => $sent
-        ? 'Cuenta creada. Revisa tu Gmail e ingresa el código de verificación.'
-        : 'Cuenta creada. Configura SMTP en el servidor para recibir el código por correo.',
+    'message' => 'Cuenta creada. Revisa tu Gmail e ingresa el código de verificación.',
     'data' => [
         'id' => $newId,
         'nombre' => $nombre,
         'correo' => $email,
         'role' => $role,
         'needs_verification' => true,
-        'email_sent' => $sent,
+        'email_sent' => true,
+        'terms_accepted' => true,
+        'privacy_version' => $privacyVersion,
         'base_api_url' => $baseUrl,
     ],
 ]);
