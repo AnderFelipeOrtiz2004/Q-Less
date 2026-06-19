@@ -174,8 +174,8 @@ $stmt->close();
 
 $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
 $stmt = $conn->prepare(
-    'INSERT INTO users (name, email, password, role, email_verified, purchases_enabled, terms_accepted, terms_accepted_at, privacy_version)
-     VALUES (?, ?, ?, ?, 0, 0, 1, NOW(), ?)'
+    'INSERT INTO users (name, email, password, role, email_verified, purchases_enabled, terms_accepted, terms_accepted_at, privacy_version, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 0, 0, 1, NOW(), ?, NOW(), NOW())'
 );
 $stmt->bind_param('sssss', $nombre, $email, $hashedPassword, $role, $privacyVersion);
 

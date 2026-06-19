@@ -113,21 +113,6 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-    final termsOk = await showLegalTermsDialog(context);
-    if (!termsOk || !mounted) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'No se creó la cuenta. Debes aceptar los términos legales.',
-            ),
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-      return;
-    }
-
     setState(() {
       _isLoading = true;
     });
@@ -205,6 +190,64 @@ class _RegisterPageState extends State<RegisterPage> {
         });
       }
     }
+  }
+
+  Widget _buildTermsAcceptanceCard() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _acceptedTerms ? const Color(0xFFE8F5E9) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _acceptedTerms ? const Color(0xFF3EC13B) : Colors.grey.shade300,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Checkbox(
+                value: _acceptedTerms,
+                activeColor: const Color(0xFF3EC13B),
+                onChanged: (value) {
+                  setState(() => _acceptedTerms = value == true);
+                },
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Acepto los Términos y la Política de Privacidad',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Obligatorio para crear tu cuenta y recibir el código en Gmail.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () => showLegalTermsViewer(context),
+              icon: const Icon(Icons.article_outlined, size: 18),
+              label: const Text('Leer documento completo'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -336,22 +379,7 @@ class _RegisterPageState extends State<RegisterPage> {
                         onChanged: (v) => setState(() => _selectedRole = v ?? 'aprendiz'),
                       ),
                       const SizedBox(height: 8),
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: _acceptedTerms,
-                        onChanged: (value) {
-                          setState(() => _acceptedTerms = value == true);
-                        },
-                        title: const Text(
-                          'Acepto los Términos y la Política de Privacidad de Q-LESS.',
-                          style: TextStyle(fontSize: 13),
-                        ),
-                        subtitle: const Text(
-                          'Obligatorio antes de enviar el código a tu Gmail.',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        controlAffinity: ListTileControlAffinity.leading,
-                      ),
+                      _buildTermsAcceptanceCard(),
                     ],
                     if (_needsVerification) ...[
                       const SizedBox(height: 20),

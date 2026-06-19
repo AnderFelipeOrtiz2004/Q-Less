@@ -314,6 +314,15 @@ class _ProductCard extends StatelessWidget {
     this.onRefresh,
   });
 
+  static String _formatCreatedAt(DateTime value) {
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day/$month/${local.year} $hour:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -387,6 +396,13 @@ class _ProductCard extends StatelessWidget {
                     'Stock: ${product.availableStock}',
                     style: const TextStyle(fontSize: 12, color: Colors.black45),
                   ),
+                  if (isAdmin && product.createdAt != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Creado: ${_formatCreatedAt(product.createdAt!)}',
+                      style: const TextStyle(fontSize: 11, color: Colors.black38),
+                    ),
+                  ],
                   if (product.availableStock == 0) ...[
                     const SizedBox(height: 6),
                     Container(
@@ -615,14 +631,27 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
 
   String _relativePathFromUrl(String value) {
     final trimmed = value.trim();
-    if (trimmed.contains('storage/products/')) {
-      return trimmed.substring(trimmed.indexOf('storage/products/'));
+    if (trimmed.isEmpty) return '';
+
+    final match = RegExp(
+      r'storage/(?:products|productos|avatars)/[^\s?]+',
+      caseSensitive: false,
+    ).firstMatch(trimmed);
+    if (match != null) {
+      return match.group(0)!;
     }
+
     if (trimmed.startsWith('storage/')) {
       return trimmed;
     }
-    return '';
+
+    return trimmed.startsWith('http') ? trimmed : '';
   }
+
+  bool get _hasExistingImage =>
+      _isEditing &&
+      ((widget.product?.imagePath.isNotEmpty ?? false) ||
+          (widget.product?.imageUrl.isNotEmpty ?? false));
 
   String _imagePathForSave() {
     if (_pickedImageBytes != null) {
@@ -640,7 +669,18 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       }
     }
 
-    return widget.product?.imagePath ?? '';
+    final existingPath = widget.product?.imagePath ?? '';
+    if (existingPath.isNotEmpty) {
+      return existingPath;
+    }
+
+    final existingUrl = widget.product?.imageUrl ?? '';
+    if (existingUrl.isNotEmpty) {
+      final fromUrl = _relativePathFromUrl(existingUrl);
+      return fromUrl.isNotEmpty ? fromUrl : existingUrl;
+    }
+
+    return '';
   }
 
   Future<void> _save() async {
@@ -895,8 +935,12 @@ final parsedStock = int.parse(_stockController.text.trim());
                       TextFormField(
                         controller: _imagePathController,
                         readOnly: true,
-                        decoration: _inputDecoration('Imagen seleccionada'),
-                        validator: _required,
+                        decoration: _inputDecoration(
+                          _hasExistingImage
+                              ? 'Imagen actual (opcional cambiar)'
+                              : 'Imagen seleccionada',
+                        ),
+                        validator: _requiredImage,
                       ),
                     ],
                   ),
@@ -1005,6 +1049,13 @@ final parsedStock = int.parse(_stockController.text.trim());
       return 'Campo requerido';
     }
     return null;
+  }
+
+  String? _requiredImage(String? value) {
+    if (_hasExistingImage || _pickedImageBytes != null) {
+      return null;
+    }
+    return _required(value);
   }
 
   String? _positiveNumber(String? value) {

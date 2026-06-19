@@ -226,8 +226,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
+      final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID']?.trim() ?? '';
       final googleSignIn = GoogleSignIn(
         scopes: const ['email', 'profile'],
+        serverClientId: webClientId.isNotEmpty ? webClientId : null,
       );
 
       final account = await googleSignIn.signIn();
@@ -270,8 +272,16 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (!mounted) return;
+      final raw = e.toString();
+      String message;
+      if (raw.contains('sign_in_failed') || raw.contains(': 10:')) {
+        message =
+            'Google Sign-In no está configurado en esta APK. Agrega GOOGLE_WEB_CLIENT_ID en .env y el SHA-1 de la app en Google Cloud Console.';
+      } else {
+        message = 'Error con Google: $raw';
+      }
       setState(() {
-        _errorMessage = 'Error con Google: ${e.toString()}';
+        _errorMessage = message;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

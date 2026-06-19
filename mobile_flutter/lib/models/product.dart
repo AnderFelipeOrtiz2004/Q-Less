@@ -9,6 +9,7 @@ class Product {
   final String imageUrl;
   final String imagePath;
   final int? userId;
+  final DateTime? createdAt;
 
   Product({
     required this.id,
@@ -21,6 +22,7 @@ class Product {
     required this.imageUrl,
     this.imagePath = '',
     this.userId,
+    this.createdAt,
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -59,6 +61,11 @@ class Product {
       userId: json['user_id'] == null
           ? null
           : int.tryParse(json['user_id'].toString()),
+      createdAt: json['created_at'] != null &&
+              json['created_at'].toString().trim().isNotEmpty &&
+              json['created_at'].toString() != '0000-00-00 00:00:00'
+          ? DateTime.tryParse(json['created_at'].toString())
+          : null,
     );
   }
 
@@ -77,28 +84,26 @@ class Product {
   }
 
   String _relativeImagePath() {
-    final path = imagePath.trim();
-    if (path.isNotEmpty) {
-      if (path.contains('storage/products/')) {
-        return path.substring(path.indexOf('storage/products/'));
+    String extract(String value) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) return '';
+
+      final match = RegExp(
+        r'storage/(?:products|productos|avatars)/[^\s?]+',
+        caseSensitive: false,
+      ).firstMatch(trimmed);
+      if (match != null) return match.group(0)!;
+
+      if (trimmed.startsWith('storage/')) return trimmed;
+      if (!trimmed.startsWith('http') && !trimmed.startsWith('blob:')) {
+        return trimmed;
       }
-      if (path.startsWith('storage/')) {
-        return path;
-      }
-      if (!path.startsWith('http') && !path.startsWith('blob:')) {
-        return path;
-      }
+      return trimmed.startsWith('http') ? trimmed : '';
     }
 
-    final url = imageUrl.trim();
-    if (url.contains('storage/products/')) {
-      return url.substring(url.indexOf('storage/products/'));
-    }
-    if (url.startsWith('storage/')) {
-      return url;
-    }
-
-    return '';
+    final fromPath = extract(imagePath);
+    if (fromPath.isNotEmpty) return fromPath;
+    return extract(imageUrl);
   }
   
   /// Returns a copy of this product with optional updated fields.
@@ -113,6 +118,7 @@ class Product {
     String? imageUrl,
     String? imagePath,
     int? userId,
+    DateTime? createdAt,
   }) {
     return Product(
       id: id ?? this.id,
@@ -125,6 +131,7 @@ class Product {
       imageUrl: imageUrl ?? this.imageUrl,
       imagePath: imagePath ?? this.imagePath,
       userId: userId ?? this.userId,
+      createdAt: createdAt ?? this.createdAt,
     );
   }
 }

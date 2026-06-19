@@ -78,8 +78,8 @@ try {
         $password = password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT);
         $privacyVersion = trim((string) ($input['privacy_version'] ?? '1.0'));
         $ins = $conn->prepare(
-            'INSERT INTO users (name, email, password, role, email_verified, purchases_enabled, terms_accepted, terms_accepted_at, privacy_version)
-             VALUES (?, ?, ?, ?, 1, 0, 1, NOW(), ?)'
+            'INSERT INTO users (name, email, password, role, email_verified, purchases_enabled, terms_accepted, terms_accepted_at, privacy_version, created_at, updated_at)
+             VALUES (?, ?, ?, ?, 1, 0, 1, NOW(), ?, NOW(), NOW())'
         );
         $ins->bind_param('sssss', $name, $email, $password, $role, $privacyVersion);
         if (!$ins->execute()) {
