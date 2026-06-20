@@ -2,8 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/index.dart';
+import '../services/sound_service.dart';
 import '../services/user_service.dart';
 import '../utils/image_utils.dart';
 import '../utils/transition_utils.dart';
@@ -37,6 +39,7 @@ class _ProfilePageState extends State<ProfilePage> {
   User? _user;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _soundsEnabled = true;
 
   bool get _canEdit => widget.showLogout && widget.userId != null;
 
@@ -49,6 +52,96 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadUser();
+    _loadSoundPreference();
+  }
+
+  Future<void> _loadSoundPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() {
+      _soundsEnabled = prefs.getBool('ui_sounds_enabled') ?? true;
+      SoundService.setEnabled(_soundsEnabled);
+    });
+  }
+
+  Future<void> _toggleSounds(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('ui_sounds_enabled', value);
+    SoundService.setEnabled(value);
+    if (value) SoundService.playClick();
+    setState(() => _soundsEnabled = value);
+  }
+
+  Widget _sectionTitle(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF3EC13B)),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actionTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onTap,
+    Color? color,
+  }) {
+    return FadeSlideEntry(
+      child: InteractiveScaleButton(
+        onTap: onTap == null
+            ? null
+            : () {
+                SoundService.playNavigate();
+                onTap();
+              },
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE6EEE6)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: color ?? const Color(0xFF3EC13B)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: color ?? Colors.black87,
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadUser() async {
@@ -226,14 +319,14 @@ class _ProfilePageState extends State<ProfilePage> {
                         'Miembro desde ${_user?.createdAt != null ? '${_user!.createdAt!.year}-${_user!.createdAt!.month.toString().padLeft(2, '0')}-${_user!.createdAt!.day.toString().padLeft(2, '0')}' : '---'}',
                         style: const TextStyle(fontSize: 12, color: Colors.black54),
                       ),
-                      if (_showServerPanel) ...[
-                        const SizedBox(height: 24),
-                        const ServerUrlPanel(),
-                        const SizedBox(height: 20),
-                      ],
+                      const SizedBox(height: 24),
+                      _sectionTitle('Mi cuenta', Icons.person_outline),
                       if (_canEdit)
-                        InteractiveScaleButton(
+                        _actionTile(
+                          icon: Icons.edit_outlined,
+                          label: 'Editar perfil',
                           onTap: () async {
+                            SoundService.playEdit();
                             final result = await Navigator.of(context).push<bool>(
                               MaterialPageRoute(
                                 builder: (context) => EditProfilePage(
@@ -244,116 +337,81 @@ class _ProfilePageState extends State<ProfilePage> {
                             );
                             if (result == true && mounted) _loadUser();
                           },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            width: double.infinity,
-                            height: 50,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF3EC13B),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Center(
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(Icons.edit, color: Colors.white),
-                                  SizedBox(width: 10),
-                                  Text(
-                                    'Editar Perfil',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
+                        ),
+                      _sectionTitle('Tienda', Icons.storefront_outlined),
+                      _actionTile(
+                        icon: Icons.inventory_2_outlined,
+                        label: 'Ver productos',
+                        onTap: widget.userId == null
+                            ? null
+                            : () => Navigator.of(context).push(
+                                  fadeSlideRoute(
+                                    ProductsPage(
+                                      userId: widget.userId!,
+                                      userRole: widget.userRole,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 12),
-                      InteractiveScaleButton(
+                                ),
+                      ),
+                      _actionTile(
+                        icon: Icons.shopping_bag_outlined,
+                        label: 'Mis compras',
                         onTap: widget.userId == null
                             ? null
-                            : () => Navigator.of(context).push(fadeSlideRoute(ProductsPage(
-                                  userId: widget.userId!,
-                                  userRole: widget.userRole,
-                                ))),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: double.infinity,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF3EC13B),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Center(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.storefront_outlined, color: Colors.white),
-                                SizedBox(width: 10),
-                                Text(
-                                  'Ver Productos',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
+                            : () => Navigator.of(context).push(
+                                  fadeSlideRoute(
+                                    MyPurchasesPage(
+                                      userId: widget.userId!,
+                                      userName: widget.userName ?? 'Usuario',
+                                    ),
                                   ),
                                 ),
-                              ],
+                      ),
+                      _sectionTitle('Preferencias', Icons.tune_outlined),
+                      FadeSlideEntry(
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: const Color(0xFFE6EEE6)),
+                          ),
+                          child: SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            value: _soundsEnabled,
+                            activeThumbColor: const Color(0xFF3EC13B),
+                            title: const Text(
+                              'Sonidos de la app',
+                              style: TextStyle(fontWeight: FontWeight.w600),
                             ),
+                            subtitle: const Text(
+                              'Clic, navegación, compra y edición',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            secondary: const Icon(
+                              Icons.volume_up_outlined,
+                              color: Color(0xFF3EC13B),
+                            ),
+                            onChanged: _toggleSounds,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      InteractiveScaleButton(
-                        onTap: widget.userId == null
-                            ? null
-                            : () => Navigator.of(context).push(fadeSlideRoute(MyPurchasesPage(
-                                  userId: widget.userId!,
-                                  userName: widget.userName ?? 'Usuario',
-                                ))),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          width: double.infinity,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF3EC13B),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Center(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.shopping_bag_outlined, color: Colors.white),
-                                SizedBox(width: 10),
-                                Text(
-                                  'Mis Compras',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (widget.showLogout) ...[
+                      if (_showServerPanel) ...[
+                        _sectionTitle('Conexión', Icons.dns_outlined),
+                        const ServerUrlPanel(),
                         const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 50,
-                          child: ElevatedButton.icon(
-                            onPressed: _showLogoutDialog,
-                            icon: const Icon(Icons.logout),
-                            label: const Text('Cerrar sesión'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                          ),
+                      ],
+                      if (widget.showLogout) ...[
+                        _sectionTitle('Sesión', Icons.logout),
+                        _actionTile(
+                          icon: Icons.logout,
+                          label: 'Cerrar sesión',
+                          color: Colors.red,
+                          onTap: _showLogoutDialog,
                         ),
                       ],
                       if (_errorMessage != null) ...[

@@ -6,10 +6,12 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/product.dart';
 import '../services/product_service.dart';
+import '../services/sound_service.dart';
 import '../utils/category_match.dart';
 import '../utils/image_utils.dart';
 import '../utils/transition_utils.dart';
 import '../widgets/index.dart';
+import '../widgets/product_grid_tile.dart';
 import 'product_detail_page.dart';
 
 class ProductsPage extends StatefulWidget {
@@ -108,6 +110,11 @@ class _ProductsPageState extends State<ProductsPage> {
   }
 
   Future<void> _openProductForm([Product? product]) async {
+    if (product != null) {
+      SoundService.playEdit();
+    } else {
+      SoundService.playClick();
+    }
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => _ProductFormDialog(
@@ -268,246 +275,37 @@ class _ProductsPageState extends State<ProductsPage> {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
+    return GridView.builder(
+      padding: const EdgeInsets.all(12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.58,
+      ),
       itemCount: productosFiltrados.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
       itemBuilder: (context, index) {
         final product = productosFiltrados[index];
-        return FadeSlideEntry(
-          duration: Duration(milliseconds: 260 + (index % 6) * 25),
-          verticalOffset: 24,
-          child: HoverElevatedCard(
-            borderRadius: BorderRadius.circular(16),
-            child: _ProductCard(
-              product: product,
-              isAdmin: _isAdmin,
-              userId: widget.userId,
-              userRole: widget.userRole,
-              onEdit: () => _openProductForm(product),
-              onDelete: () => _deleteProduct(product),
-              onRefresh: () => _loadProducts(),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _ProductCard extends StatelessWidget {
-  final Product product;
-  final bool isAdmin;
-  final int userId;
-  final String userRole;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final VoidCallback? onRefresh;
-
-  const _ProductCard({
-    required this.product,
-    required this.isAdmin,
-    required this.userId,
-    required this.userRole,
-    required this.onEdit,
-    required this.onDelete,
-    this.onRefresh,
-  });
-
-  static String _formatCreatedAt(DateTime value) {
-    final local = value.toLocal();
-    final day = local.day.toString().padLeft(2, '0');
-    final month = local.month.toString().padLeft(2, '0');
-    final hour = local.hour.toString().padLeft(2, '0');
-    final minute = local.minute.toString().padLeft(2, '0');
-    return '$day/$month/${local.year} $hour:$minute';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: Colors.white,
-        boxShadow: [
-            BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(14),
-              bottomLeft: Radius.circular(14),
-            ),
-            child: Hero(
-              tag: 'product-image-${product.id}',
-              child: buildProductImage(
-                product.imagePath,
-                product.imageUrl,
-                width: 112,
-                height: 126,
-                fit: BoxFit.cover,
-                placeholder: Container(
-                  width: 112,
-                  height: 126,
-                  color: Colors.grey[200],
-                  child: const Icon(Icons.inventory_2_outlined),
+        return ProductGridTile(
+          product: product,
+          animationIndex: index,
+          showAdminActions: _isAdmin,
+          onEdit: () => _openProductForm(product),
+          onDelete: () => _deleteProduct(product),
+          onTap: () {
+            SoundService.playNavigate();
+            Navigator.of(context).push(
+              fadeSlideRoute(
+                ProductDetailPage(
+                  product: product,
+                  userId: widget.userId,
+                  userRole: widget.userRole,
                 ),
               ),
-            ),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.nombre,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    product.descripcion,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13, color: Colors.black54),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    '${product.precio} Pesos',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF3EC13B),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Stock: ${product.availableStock}',
-                    style: const TextStyle(fontSize: 12, color: Colors.black45),
-                  ),
-                  if (isAdmin && product.createdAt != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      'Creado: ${_formatCreatedAt(product.createdAt!)}',
-                      style: const TextStyle(fontSize: 11, color: Colors.black38),
-                    ),
-                  ],
-                  if (product.availableStock == 0) ...[
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        'Agotado',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.red,
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (product.availableStock > 0 && product.availableStock <= 3) ...[
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(Icons.warning_amber_rounded,
-                            size: 16, color: Colors.orange),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Stock bajo: ${product.availableStock}',
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.orange),
-                        ),
-                      ],
-                    ),
-                  ],
-                  if (isAdmin) ...[
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        TextButton.icon(
-                          onPressed: onEdit,
-                          icon: const Icon(Icons.edit_outlined, size: 18),
-                          label: const Text('Editar'),
-                        ),
-                        TextButton.icon(
-                          onPressed: onDelete,
-                          icon: const Icon(Icons.delete_outline, size: 18),
-                          label: const Text('Borrar'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.red,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                  // For regular users show action buttons to view details / buy
-                  if (!isAdmin) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.of(context)
-                                .push(
-                                  fadeSlideRoute(
-                                    ProductDetailPage(
-                                      product: product,
-                                      userId: userId,
-                                      userRole: userRole,
-                                      onAddToCart: (p, qty) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                                '${p.nombre} agregado al carrito ($qty)'),
-                                            backgroundColor:
-                                                const Color(0xFF3EC13B),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                )
-                                    .then((_) {
-                                  if (onRefresh != null) onRefresh!();
-                                });
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE0E0E0),
-                            foregroundColor: Colors.black87,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text('Ver más'),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+            );
+          },
+        );
+      },
     );
   }
 }

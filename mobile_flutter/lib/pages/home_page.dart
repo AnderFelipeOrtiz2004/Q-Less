@@ -13,6 +13,7 @@ import '../theme/app_theme.dart';
 import '../utils/image_utils.dart';
 import '../utils/transition_utils.dart';
 import '../widgets/quantity_input.dart';
+import '../widgets/product_grid_tile.dart';
 import 'admin_purchases_page.dart';
 import 'favorites_page.dart';
 import 'cart_page.dart';
@@ -354,6 +355,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _navigateTo(Widget page, {bool refreshOnReturn = false}) async {
+    SoundService.playNavigate();
     await Navigator.of(context).push(fadeSlideRoute(page));
 
     if (refreshOnReturn) {
@@ -490,6 +492,7 @@ class _HomePageState extends State<HomePage> {
 
         if (rid > 0) _reservationTimers[rid] = timer;
 
+        SoundService.playPurchase();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${product.nombre} reservado ($quantity)'),
@@ -653,15 +656,43 @@ class _HomePageState extends State<HomePage> {
                     else if (visibleProducts.isEmpty)
                       SliverToBoxAdapter(child: _buildEmptyState())
                     else
-                      SliverList.builder(
-                        itemCount: visibleProducts.length,
-                        itemBuilder: (context, index) {
-                          final product = visibleProducts[index];
-                          return KeyedSubtree(
-                            key: ValueKey<int>(product.id),
-                            child: _buildProductCard(product),
-                          );
-                        },
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                        sliver: SliverGrid(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 0.58,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final product = visibleProducts[index];
+                              return ProductGridTile(
+                                key: ValueKey<int>(product.id),
+                                product: product,
+                                animationIndex: index,
+                                isFavorite:
+                                    _favoriteIds.contains(product.id),
+                                onFavorite: () => _toggleFavorite(product),
+                                onTap: () async {
+                                  await _navigateTo(
+                                    ProductDetailPage(
+                                      product: product,
+                                      userId: _uid,
+                                      userRole: widget.userRole,
+                                      onAddToCart: _addToCart,
+                                    ),
+                                  );
+                                  _loadFavoriteIds();
+                                },
+                                onBuy: () => _showBuyDialog(product),
+                              );
+                            },
+                            childCount: visibleProducts.length,
+                          ),
+                        ),
                       ),
                     const SliverToBoxAdapter(child: SizedBox(height: 24)),
                   ],
@@ -843,6 +874,7 @@ class _HomePageState extends State<HomePage> {
               : _buildNavIcon(
                   icon: Icons.shopping_cart_outlined,
                   label: 'Carrito',
+                  badgeCount: _cartCount,
                   onTap: _showCart,
                 ),
         ],
@@ -854,15 +886,24 @@ class _HomePageState extends State<HomePage> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    int badgeCount = 0,
   }) {
+    final iconWidget = Icon(icon, color: Colors.white, size: 27);
     return Tooltip(
       message: label,
       child: IconButton(
         onPressed: () {
-          SoundService.playClick();
+          SoundService.playNavigate();
           onTap();
         },
-        icon: Icon(icon, color: Colors.white, size: 27),
+        icon: badgeCount > 0
+            ? Badge(
+                label: Text('$badgeCount'),
+                backgroundColor: Colors.white,
+                textColor: _brandGreen,
+                child: iconWidget,
+              )
+            : iconWidget,
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(minWidth: 44, minHeight: 40),
       ),
@@ -1124,198 +1165,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildProductCard(Product product) {
-    final outOfStock = product.availableStock <= 0;
-    final isFavorite = _favoriteIds.contains(product.id);
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(8, 0, 8, 18),
-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: !outOfStock
-            ? const [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 6,
-                  offset: Offset(0, 2),
-                ),
-              ]
-            : [],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: const Color(0xFFEAEAEA),
-          width: 1.2,
-        ),
-      ),
-      child: InkWell(
-        onTap: () => _navigateTo(
-          ProductDetailPage(
-            product: product,
-            userId: _uid,
-            userRole: widget.userRole,
-            onAddToCart: _addToCart,
-          ),
-        ).then((_) => _loadFavoriteIds()),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (outOfStock)
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red[200]!),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.error_outline, color: Colors.red[700], size: 22),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Ya no hay stock de este producto',
-                        style: TextStyle(
-                          color: Colors.red[800],
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Center(
-              child: Container(
-                width: 166,
-                height: 154,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border.all(color: const Color(0xFFDADADA), width: 6),
-                ),
-                child: buildProductImage(
-                  product.imagePath,
-                  product.imageUrl,
-                  fit: BoxFit.contain,
-                  width: 150,
-                  height: 138,
-                  context: context,
-                  placeholder: const Icon(
-                    Icons.inventory_2_outlined,
-                    size: 54,
-                    color: Colors.black38,
-                  ),
-                ),
-              ),
-            ),
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: IconButton(
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => _toggleFavorite(product),
-                    icon: Icon(
-                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite ? Colors.red : Colors.grey,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              product.nombre,
-              style: TextStyle(
-                color: Colors.grey[600],
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${product.precio} Pesos',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => _navigateTo(
-                    ProductDetailPage(
-                      product: product,
-                      userId: _uid,
-                      userRole: widget.userRole,
-                      onAddToCart: _addToCart,
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE0E0E0),
-                    foregroundColor: Colors.black87,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: 18),
-                    minimumSize: const Size(82, 36),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  child: const Text(
-                    'Ver más',
-                    style: TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Text(
-                  'Disponible: ${product.availableStock}',
-                  style: const TextStyle(color: Colors.black45, fontSize: 12),
-                ),
-                const Spacer(),
-                Badge(
-                  label: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 300),
-                    transitionBuilder: (w, a) => ScaleTransition(scale: a, child: w),
-                    child: Text(
-                      _cartCount.toString(),
-                      key: ValueKey<int>(_cartCount),
-                    ),
-                  ),
-                  backgroundColor: _brandGreen,
-                  child: IconButton(
-                    onPressed: outOfStock
-                        ? () => _showOutOfStockMessage(product.nombre)
-                        : () => _showBuyDialog(product),
-                    icon: const Icon(Icons.shopping_cart_outlined),
-                    color: _brandGreen,
-                    iconSize: 20,
-                    padding: EdgeInsets.zero,
-                    constraints:
-                        const BoxConstraints(minWidth: 32, minHeight: 32),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
