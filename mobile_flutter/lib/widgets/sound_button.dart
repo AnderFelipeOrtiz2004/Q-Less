@@ -24,14 +24,19 @@ class SoundButton extends StatelessWidget {
     switch (sound) {
       case SoundButtonType.click:
         SoundService.playClick();
+        break;
       case SoundButtonType.navigate:
         SoundService.playNavigate();
+        break;
       case SoundButtonType.purchase:
         SoundService.playPurchase();
+        break;
       case SoundButtonType.success:
         SoundService.playSuccess();
+        break;
       case SoundButtonType.edit:
         SoundService.playEdit();
+        break;
     }
   }
 
