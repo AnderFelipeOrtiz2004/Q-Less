@@ -17,13 +17,13 @@ set "DEST=releases"
 
 if not exist "%DEST%" mkdir "%DEST%"
 
-copy /Y "%SRC%" "%DEST%\Q-LESS-v2.9.1-mobile.apk" >nul
+copy /Y "%SRC%" "%DEST%\Q-LESS-v2.9.2-mobile.apk" >nul
 copy /Y "%SRC%" "%DEST%\app-release.apk" >nul
 
 echo.
 echo === LISTO ===
 echo APK original : %CD%\%SRC%
-echo APK para GitHub: %CD%\%DEST%\Q-LESS-v2.9.1-mobile.apk
+echo APK para GitHub: %CD%\%DEST%\Q-LESS-v2.9.2-mobile.apk
 echo.
 echo Abriendo carpeta releases...
 start "" "%CD%\%DEST%"
