@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/cart_item.dart';
 import '../services/carrito_service.dart';
+import '../services/discount_wheel_service.dart';
 import '../services/order_service.dart';
 import '../services/product_service.dart';
 import '../services/sound_service.dart';
 import '../utils/image_utils.dart';
 import '../widgets/quantity_input.dart';
 import '../widgets/staggered_fade_in.dart';
+import '../widgets/discount_wheel_dialog.dart';
 import '../widgets/fade_slide_entry.dart';
 
 class CartPage extends StatefulWidget {
@@ -43,12 +45,20 @@ class _CartPageState extends State<CartPage> {
   bool _isProcessing = false;
   bool _purchaseLocked = false;
   Timer? _expirationTimer;
+  int? _discountPercent;
 
   @override
   void initState() {
     super.initState();
     _items = List.from(widget.cartItems);
     _startExpirationWatcher();
+    _loadActiveDiscount();
+  }
+
+  Future<void> _loadActiveDiscount() async {
+    final percent = await DiscountWheelService.activeDiscountPercent();
+    if (!mounted) return;
+    setState(() => _discountPercent = percent);
   }
 
   @override
@@ -103,6 +113,16 @@ class _CartPageState extends State<CartPage> {
 
   int get _totalPrice {
     return _items.fold(0, (sum, item) => sum + item.totalPrice);
+  }
+
+  int get _discountAmount {
+    final percent = _discountPercent ?? 0;
+    return DiscountWheelService.discountAmount(_totalPrice, percent);
+  }
+
+  int get _finalTotal {
+    final total = _totalPrice - _discountAmount;
+    return total < 0 ? 0 : total;
   }
 
   Future<void> _removeItem(int index) async {
@@ -261,6 +281,9 @@ class _CartPageState extends State<CartPage> {
         try {
           await SoundService.playSuccess();
         } catch (_) {}
+        if (_discountPercent != null && _discountPercent! > 0) {
+          await DiscountWheelService.clearActiveDiscount();
+        }
         if (!mounted) return;
         // Todas las compras fueron exitosas
         ScaffoldMessenger.of(context).showSnackBar(
@@ -277,6 +300,10 @@ class _CartPageState extends State<CartPage> {
         // Limpiar el carrito y actualizar
         widget.onCartUpdate([]);
         widget.onPurchaseComplete();
+
+        if (mounted) {
+          await DiscountWheelDialog.showIfAvailable(context);
+        }
 
         // Ir a la página de mis compras
         if (mounted) {
@@ -525,6 +552,30 @@ class _CartPageState extends State<CartPage> {
                           ),
                         ],
                       ),
+                      if (_discountPercent != null && _discountPercent! > 0) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Descuento ruleta (-$_discountPercent%)',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.green[700],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              '-\$$_discountAmount',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.green[700],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -538,7 +589,7 @@ class _CartPageState extends State<CartPage> {
                             ),
                           ),
                           Text(
-                            '\$$_totalPrice',
+                            '\$$_finalTotal',
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,

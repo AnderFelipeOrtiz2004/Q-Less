@@ -1,0 +1,213 @@
+{\rtf1\ansi\deff0
+{\fonttbl{\f0 Arial;}}
+\f0\fs22
+
+\b MANUAL DE USUARIO\b0\par
+\par
+\b Sistema:\b0  Q-LESS - Utiles escolares e insumos academicos\par
+\b Documento:\b0  Manual de usuario\par
+\b Version del sistema:\b0  2.9.1\par
+\b Version del manual:\b0  1.0\par
+\b Fecha:\b0  Junio 2026\par
+\b Programa de formacion:\b0  Analisis y Desarrollo de Software\par
+\b Institucion:\b0  CBA (Centro de Biotecnologia Agropecuaria)\par
+\par
+\b Equipo responsable:\b0\par
+Anderson Felipe Ortiz Garcia\par
+Cristian Dario Rojas Ubalteros\par
+Daniel Andres Cubides Herrera\par
+\par
+\line
+\par
+
+\b 1. INTRODUCCION\b0\par
+\par
+El presente manual describe el funcionamiento de Q-LESS, aplicacion movil para Android orientada a aprendices e instructores del CBA. El sistema facilita la consulta, reserva y solicitud de compra de utiles escolares y materiales de papeleria, con sincronizacion del catalogo en linea.\par
+\par
+El documento orienta al usuario final en el acceso, navegacion y uso de las funcionalidades principales de la aplicacion.\par
+\par
+
+\b 2. OBJETIVO DEL MANUAL\b0\par
+\par
+Orientar al usuario final en el uso adecuado de Q-LESS, mediante la descripcion ordenada de los procedimientos para registrarse, iniciar sesion, consultar productos, gestionar el carrito, realizar solicitudes de compra y administrar el catalogo cuando corresponda al rol de administrador.\par
+\par
+
+\b 3. ALCANCE DEL MANUAL\b0\par
+\par
+El manual incluye el acceso al sistema, la navegacion general, el catalogo de productos, favoritos, carrito de compras, historial de pedidos, perfil de usuario y las funciones administrativas de productos y compras.\par
+\par
+No incluye la instalacion del servidor, la configuracion tecnica del sistema, el desarrollo del codigo fuente ni el mantenimiento de la base de datos.\par
+\par
+
+\b 4. PUBLICO OBJETIVO\b0\par
+\par
+\b Aprendiz o usuario general:\b0  Persona que consulta productos, agrega favoritos, reserva articulos y solicita compras.\par
+\par
+\b Instructor:\b0  Persona que utiliza las mismas funciones del usuario general para adquirir materiales.\par
+\par
+\b Administrador:\b0  Persona autorizada que gestiona productos, aprueba o rechaza compras y habilita compras a otros usuarios.\par
+\par
+
+\b 5. REQUISITOS PREVIOS\b0\par
+\par
+El usuario debe contar con un dispositivo Android actualizado, conexion a internet, la aplicacion Q-LESS instalada y un correo electronico valido para el registro y las notificaciones.\par
+\par
+Para solicitar compras, el correo debe estar verificado y el administrador debe tener habilitadas las compras para esa cuenta.\par
+\par
+
+\b 6. ACCESO AL SISTEMA\b0\par
+\par
+\b 6.1 Inicio de sesion\b0\par
+\par
+1. El usuario abre la aplicacion Q-LESS en el dispositivo.\par
+2. El sistema muestra la pantalla de inicio de sesion.\par
+3. El usuario ingresa el correo electronico y la contrasena registrados.\par
+4. El usuario selecciona el boton Iniciar sesion.\par
+5. El sistema valida las credenciales y muestra la pantalla principal si los datos son correctos.\par
+\par
+\b 6.2 Registro de cuenta nueva\b0\par
+\par
+1. El usuario selecciona la opcion Registrarse.\par
+2. El sistema muestra el formulario con nombre, correo, contrasena y confirmacion.\par
+3. El usuario marca la casilla de aceptacion de terminos y condiciones.\par
+4. El usuario selecciona Registrarse.\par
+5. El sistema envia un codigo de verificacion al correo indicado.\par
+6. El usuario ingresa el codigo recibido y confirma.\par
+7. El sistema activa la cuenta y permite el inicio de sesion.\par
+\par
+\b 6.3 Inicio de sesion con Google\b0\par
+\par
+1. El usuario selecciona Iniciar sesion con Google.\par
+2. El sistema muestra el dialogo de terminos y condiciones si aplica.\par
+3. El usuario acepta los terminos y selecciona la cuenta de Google.\par
+4. El sistema registra o vincula la cuenta y muestra la pantalla principal.\par
+\par
+\b 6.4 Recuperacion de contrasena\b0\par
+\par
+1. En la pantalla de inicio de sesion, el usuario selecciona la opcion de recuperar contrasena.\par
+2. El sistema solicita el correo registrado.\par
+3. El usuario ingresa el correo y confirma el envio.\par
+4. El sistema envia instrucciones al correo para restablecer la contrasena.\par
+\par
+
+\b 7. NAVEGACION GENERAL\b0\par
+\par
+Al ingresar, el sistema muestra la pantalla de inicio con barra superior y barra inferior de acceso rapido.\par
+\par
+\b Inicio:\b0  Muestra el catalogo destacado en cuadricula de dos columnas.\par
+\b Productos:\b0  Presenta el listado completo con filtros; el administrador puede crear y editar articulos.\par
+\b Favoritos:\b0  Muestra los productos guardados previamente.\par
+\b Carrito:\b0  Permite revisar reservas y solicitar compra (usuario general).\par
+\b Compras:\b0  Permite aprobar o rechazar pedidos (solo administrador).\par
+\b Perfil:\b0  Acceso desde el icono de usuario en la parte superior; incluye datos personales y cierre de sesion.\par
+\b Busqueda:\b0  Icono en la barra superior para filtrar productos por nombre.\par
+\par
+
+\b 8. MODULOS DEL SISTEMA\b0\par
+\par
+\b 8.1 Inicio y catalogo\b0\par
+\par
+1. El usuario visualiza los productos disponibles en formato de tarjetas.\par
+2. El usuario puede desplazarse para ver mas articulos; el catalogo se actualiza automaticamente.\par
+3. El usuario selecciona un producto para ver nombre, descripcion, precio, stock e imagen.\par
+4. Desde el detalle, el usuario puede agregar el articulo al carrito o marcarlo como favorito.\par
+\par
+Resultado esperado: El sistema muestra la informacion del producto y confirma las acciones con mensajes en pantalla.\par
+\par
+\b 8.2 Busqueda de productos\b0\par
+\par
+1. El usuario selecciona el icono de busqueda en la barra superior.\par
+2. El sistema despliega el campo de busqueda.\par
+3. El usuario escribe el nombre o termino relacionado.\par
+4. El sistema filtra y muestra los productos coincidentes.\par
+\par
+\b 8.3 Favoritos\b0\par
+\par
+1. El usuario selecciona Favoritos en la barra inferior.\par
+2. El sistema muestra los productos guardados previamente.\par
+3. El usuario puede abrir el detalle o agregar un articulo al carrito desde esta seccion.\par
+\par
+\b 8.4 Carrito y reserva de productos\b0\par
+\par
+1. El usuario agrega productos al carrito desde el catalogo o favoritos.\par
+2. El sistema reserva temporalmente el stock y muestra el tiempo restante de la reserva.\par
+3. El usuario selecciona Carrito en la barra inferior.\par
+4. El sistema lista los articulos, cantidades y total.\par
+5. El usuario ajusta cantidades o elimina productos si lo requiere.\par
+6. El usuario selecciona la opcion para solicitar la compra.\par
+7. El sistema registra la orden con estado pendiente de aprobacion.\par
+\par
+Si la reserva expira, el sistema elimina el producto del carrito y libera el stock automaticamente.\par
+\par
+\b 8.5 Mis compras\b0\par
+\par
+1. El usuario accede desde Perfil y selecciona Mis compras.\par
+2. El sistema muestra el historial con estados: pendiente, aceptada, rechazada o completada.\par
+3. Cuando el administrador aprueba una compra, el sistema envia un codigo al correo del usuario.\par
+4. El usuario consulta el codigo de entrega en el detalle del pedido aceptado.\par
+\par
+\b 8.6 Perfil de usuario\b0\par
+\par
+1. El usuario selecciona el icono de perfil en la barra superior.\par
+2. El sistema muestra nombre, correo, rol y opciones de configuracion.\par
+3. El usuario puede seleccionar Editar perfil para actualizar nombre, descripcion o imagen.\par
+4. El usuario puede activar o desactivar los sonidos de la interfaz.\par
+5. Desde el perfil se accede a Mis compras, Ver productos y Cerrar sesion.\par
+\par
+\b 8.7 Gestion de productos (administrador)\b0\par
+\par
+1. El administrador ingresa a Productos.\par
+2. El sistema muestra el catalogo con la opcion Crear para nuevos articulos.\par
+3. El administrador diligencia nombre, categoria, precio, stock, descripcion e imagen.\par
+4. Para editar, el administrador selecciona un producto y modifica los campos necesarios.\par
+5. El administrador confirma con Guardar.\par
+6. El sistema actualiza el catalogo para todos los usuarios.\par
+\par
+\b 8.8 Aprobacion de compras (administrador)\b0\par
+\par
+1. El administrador selecciona Compras en la barra inferior.\par
+2. El sistema muestra las pestanas Pendientes y Todas.\par
+3. En pendientes, el administrador revisa producto, cantidad, comprador y total.\par
+4. El administrador selecciona Aprobar o Rechazar.\par
+5. Si aprueba, el sistema envia el codigo de entrega al correo del comprador.\par
+6. Si rechaza, el sistema restaura el stock y actualiza el estado del pedido.\par
+7. El administrador puede habilitar compras a usuarios que aun no tienen permiso.\par
+\par
+
+\b 9. MENSAJES Y VALIDACIONES\b0\par
+\par
+\b Registro exitoso o cuenta verificada:\b0  El usuario puede iniciar sesion.\par
+\b Credenciales incorrectas:\b0  El usuario debe verificar correo y contrasena.\par
+\b Campos obligatorios incompletos:\b0  El usuario debe completar todos los campos requeridos.\par
+\b Correo ya registrado:\b0  El usuario debe usar otro correo o recuperar la contrasena.\par
+\b Reserva expirada:\b0  El usuario debe volver a agregar el producto al carrito.\par
+\b Compras no habilitadas:\b0  El usuario debe contactar al administrador.\par
+\b Pendiente de aprobacion:\b0  El usuario debe esperar la respuesta del administrador.\par
+\b Compra aceptada:\b0  El usuario debe revisar el correo para el codigo de entrega.\par
+\b Compra rechazada:\b0  El stock queda disponible nuevamente en el catalogo.\par
+\par
+
+\b 10. CIERRE DE SESION\b0\par
+\par
+1. El usuario selecciona el icono de Perfil en la barra superior.\par
+2. El usuario selecciona la opcion Cerrar sesion.\par
+3. El usuario confirma la accion.\par
+4. El sistema finaliza la sesion y regresa a la pantalla de inicio de sesion.\par
+\par
+
+\b 11. SOPORTE O CONTACTO\b0\par
+\par
+\b Responsable:\b0  Equipo desarrollador Q-LESS - CBA\par
+\b Correo:\b0  ortizgarciafelipe37@gmail.com\par
+\b Tipo de soporte:\b0  Orientacion de uso y reporte de errores durante la etapa formativa.\par
+\par
+
+\b 12. GLOSARIO\b0\par
+\par
+\b Reserva:\b0  Bloqueo temporal de stock mientras el producto permanece en el carrito.\par
+\b Orden o pedido:\b0  Solicitud de compra registrada en el sistema.\par
+\b Codigo de entrega:\b0  Numero enviado por correo para confirmar el pedido aprobado.\par
+\b Administrador:\b0  Usuario con permisos para gestionar productos y aprobar compras.\par
+\b Catalogo:\b0  Listado de productos disponibles en la aplicacion.\par
+\par
+}
