@@ -36,9 +36,9 @@ try {
     $roleExpr = users_role_sql_expr();
     $stmt = $conn->prepare(
         "SELECT id, name, email, password, ($roleExpr) AS role,
-                COALESCE(email_verified, 1) AS email_verified,
+                COALESCE(email_verified, 0) AS email_verified,
                 COALESCE(purchases_enabled, 0) AS purchases_enabled
-         FROM users WHERE email = ? LIMIT 1"
+         FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1"
     );
     if (!$stmt) {
         send_json(500, [
@@ -81,12 +81,29 @@ try {
         send_json(401, ['status' => 'error', 'message' => 'Contraseña incorrecta']);
     }
 
+    $adminEmail = strtolower(trim(load_local_env('ADMIN_EMAIL') ?: ''));
+    $isDesignatedAdmin = $adminEmail !== '' && strtolower((string) $user['email']) === $adminEmail;
+
     if (intval($user['email_verified']) !== 1) {
-        send_json(403, [
-            'status' => 'error',
-            'message' => 'Debes verificar tu correo Gmail antes de iniciar sesión.',
-            'code' => 'email_not_verified',
-        ]);
+        if ($isDesignatedAdmin || strtolower((string) ($user['role'] ?? '')) === 'admin') {
+            $fix = $conn->prepare(
+                'UPDATE users SET email_verified = 1, purchases_enabled = 1 WHERE id = ?'
+            );
+            if ($fix) {
+                $uid = (int) $user['id'];
+                $fix->bind_param('i', $uid);
+                $fix->execute();
+                $fix->close();
+            }
+            $user['email_verified'] = 1;
+            $user['purchases_enabled'] = 1;
+        } else {
+            send_json(403, [
+                'status' => 'error',
+                'message' => 'Debes verificar tu correo Gmail antes de iniciar sesión.',
+                'code' => 'email_not_verified',
+            ]);
+        }
     }
 
     send_json(200, [

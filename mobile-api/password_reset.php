@@ -71,6 +71,14 @@ if ($action === 'request') {
         send_json(404, ['status' => 'error', 'message' => 'No existe una cuenta con ese correo']);
     }
 
+    if (!smtp_is_configured()) {
+        send_json(503, [
+            'status' => 'error',
+            'message' => 'Correo no configurado en el servidor. Configura SMTP_USER, SMTP_PASS y SMTP_FROM en Railway.',
+            'code' => 'smtp_not_configured',
+        ]);
+    }
+
     $conn->query(
         "UPDATE password_reset_codes SET used_at = NOW()
          WHERE email = '" . $conn->real_escape_string($email) . "' AND used_at IS NULL"

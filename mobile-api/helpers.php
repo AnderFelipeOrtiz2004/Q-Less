@@ -21,23 +21,48 @@ function ensure_default_admin(mysqli $conn): void
     }
     $password = password_hash($plainPassword, PASSWORD_BCRYPT);
 
-    $stmt = $conn->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT id, password FROM users WHERE email = ? LIMIT 1');
     $stmt->bind_param('s', $email);
     $stmt->execute();
-    $exists = $stmt->get_result()->fetch_assoc();
+    $existing = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
-    if ($exists) {
-        $upd = $conn->prepare('UPDATE users SET name = ?, role = ? WHERE email = ?');
+    if ($existing) {
+        $storedHash = (string) ($existing['password'] ?? '');
+        $passwordMatches = $storedHash !== ''
+            && (password_verify($plainPassword, $storedHash) || hash_equals($storedHash, $plainPassword));
+
+        $upd = $conn->prepare(
+            'UPDATE users SET name = ?, role = ?, email_verified = 1, purchases_enabled = 1 WHERE email = ?'
+        );
         if ($upd) {
             $upd->bind_param('sss', $name, $role, $email);
             $upd->execute();
             $upd->close();
         }
+
+        if (table_has_column($conn, 'users', 'rol')) {
+            @$conn->query(
+                "UPDATE users SET rol = 'admin' WHERE LOWER(email) = LOWER('"
+                . $conn->real_escape_string($email) . "')"
+            );
+        }
+
+        if (!$passwordMatches) {
+            $pwdUpd = $conn->prepare('UPDATE users SET password = ? WHERE email = ?');
+            if ($pwdUpd) {
+                $pwdUpd->bind_param('ss', $password, $email);
+                $pwdUpd->execute();
+                $pwdUpd->close();
+            }
+        }
         return;
     }
 
-    $ins = $conn->prepare('INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)');
+    $ins = $conn->prepare(
+        'INSERT INTO users (name, email, password, role, email_verified, purchases_enabled, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 1, 1, NOW(), NOW())'
+    );
     if ($ins) {
         $ins->bind_param('ssss', $name, $email, $password, $role);
         $ins->execute();

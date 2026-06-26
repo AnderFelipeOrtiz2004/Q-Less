@@ -36,5 +36,14 @@ if (preg_match('#^/(?:products|productos)/(.+)$#', $uri, $m)) {
     }
 }
 
+// Ejecutar endpoints .php directamente (repair_admin, login, etc.)
+if (preg_match('#^/([A-Za-z0-9_-]+\.php)$#', $uri, $m)) {
+    $script = __DIR__ . '/' . $m[1];
+    if (is_file($script)) {
+        require $script;
+        return true;
+    }
+}
+
 // Dejar que PHP sirva archivos estáticos y ejecute .php
 return false;

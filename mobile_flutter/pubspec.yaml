@@ -1,7 +1,7 @@
 name: q_less_prototype
 description: Q-Less app prototype with login and register screens.
 publish_to: none
-version: 2.9.1+31
+version: 2.9.2+32
 environment:
   sdk: '>=2.19.0 <4.0.0'
 
