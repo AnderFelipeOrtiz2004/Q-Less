@@ -221,15 +221,28 @@ class _ChatbotPageState extends State<ChatbotPage> {
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
-        children: _suggestions.map((suggestion) {
-          return ActionChip(
-            label: Text(
-              suggestion,
-              style: const TextStyle(fontSize: 12),
+        alignment: WrapAlignment.center,
+        children: _suggestions.asMap().entries.map((entry) {
+          final index = entry.key;
+          final suggestion = entry.value;
+          return FadeSlideEntry(
+            duration: Duration(milliseconds: 220 + (index % 5) * 40),
+            verticalOffset: 16,
+            curve: Curves.easeOutBack,
+            child: ActionChip(
+              label: Text(
+                suggestion,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              backgroundColor: const Color(0xFFE8F5E9),
+              side: const BorderSide(color: Color(0xFFB8DEB9)),
+              elevation: 2,
+              shadowColor: Colors.black26,
+              onPressed: () {
+                SoundService.playClick();
+                _sendSuggestion(suggestion);
+              },
             ),
-            backgroundColor: const Color(0xFFE8F5E9),
-            side: const BorderSide(color: Color(0xFFB8DEB9)),
-            onPressed: () => _sendSuggestion(suggestion),
           );
         }).toList(),
       ),

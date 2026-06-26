@@ -1,7 +1,7 @@
 name: q_less_prototype
 description: Q-Less app prototype with login and register screens.
 publish_to: none
-version: 2.8.1+29
+version: 2.9.1+31
 environment:
   sdk: '>=2.19.0 <4.0.0'
 
@@ -52,3 +52,4 @@ flutter:
     - .env
     - assets/images/logo.png
     - assets/images/icon_ql.png
+    - assets/sounds/

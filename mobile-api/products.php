@@ -205,25 +205,70 @@ if (!is_admin_request($input)) {
 
 if ($method === 'POST' || $method === 'PUT') {
     $id = isset($input['id']) ? intval($input['id']) : 0;
+    $isUpdate = $method === 'PUT' && $id > 0;
+    $existingRow = null;
+
+    if ($isUpdate) {
+        $existing = $conn->prepare(
+            'SELECT nombre, descripcion, categoria, precio, stock, image_path, user_id FROM productos WHERE id = ? LIMIT 1'
+        );
+        $existing->bind_param('i', $id);
+        $existing->execute();
+        $existingRow = $existing->get_result()->fetch_assoc();
+        $existing->close();
+
+        if (!$existingRow) {
+            send_json(404, ['status' => 'error', 'message' => 'Producto no encontrado']);
+        }
+    }
+
     $nombre = isset($input['nombre']) ? trim($input['nombre']) : '';
     $descripcion = isset($input['descripcion']) ? trim($input['descripcion']) : '';
-    $categoria = isset($input['categoria']) ? trim($input['categoria']) : 'Cuadernos';
-    $precio = isset($input['precio']) ? intval($input['precio']) : 0;
-    $stock = isset($input['stock']) ? intval($input['stock']) : 0;
+    $categoria = isset($input['categoria']) ? trim($input['categoria']) : '';
+    $precio = isset($input['precio']) ? intval($input['precio']) : -1;
+    $stock = isset($input['stock']) ? intval($input['stock']) : -1;
     $imagePath = normalize_storage_image_path($input['image_path'] ?? '');
-    $userId = isset($input['user_id']) ? intval($input['user_id']) : 1;
+    $userId = isset($input['user_id']) ? intval($input['user_id']) : 0;
     $savedImagePath = save_product_image($input);
     if ($savedImagePath !== '') {
         $imagePath = $savedImagePath;
     }
 
-    if ($method === 'PUT' && $id > 0 && $imagePath === '') {
-        $existing = $conn->prepare('SELECT image_path FROM productos WHERE id = ? LIMIT 1');
-        $existing->bind_param('i', $id);
-        $existing->execute();
-        $existingRow = $existing->get_result()->fetch_assoc();
-        $existing->close();
-        $imagePath = normalize_storage_image_path($existingRow['image_path'] ?? '');
+    if ($isUpdate && $existingRow) {
+        if ($nombre === '') {
+            $nombre = trim((string) ($existingRow['nombre'] ?? ''));
+        }
+        if ($descripcion === '') {
+            $descripcion = trim((string) ($existingRow['descripcion'] ?? ''));
+        }
+        if ($categoria === '') {
+            $categoria = trim((string) ($existingRow['categoria'] ?? 'Cuadernos y libretas'));
+        }
+        if ($precio < 0) {
+            $precio = intval($existingRow['precio'] ?? 0);
+        }
+        if ($stock < 0) {
+            $stock = intval($existingRow['stock'] ?? 0);
+        }
+        if ($imagePath === '') {
+            $imagePath = normalize_storage_image_path($existingRow['image_path'] ?? '');
+        }
+        if ($userId <= 0) {
+            $userId = intval($existingRow['user_id'] ?? 1);
+        }
+    } else {
+        if ($categoria === '') {
+            $categoria = 'Cuadernos y libretas';
+        }
+        if ($precio < 0) {
+            $precio = 0;
+        }
+        if ($stock < 0) {
+            $stock = 0;
+        }
+        if ($userId <= 0) {
+            $userId = 1;
+        }
     }
 
     if ($savedImagePath === '' && (preg_match('/^blob:/i', $imagePath) || stripos($imagePath, 'data:image/') !== false)) {
@@ -233,11 +278,23 @@ if ($method === 'POST' || $method === 'PUT') {
         ]);
     }
 
-    if ($nombre === '' || $descripcion === '' || $categoria === '' || $precio < 0 || $stock < 0 || $imagePath === '') {
-        send_json(400, [
-            'status' => 'error',
-            'message' => 'Nombre, descripcion, categoria, precio, stock e imagen son requeridos'
-        ]);
+    if ($method === 'POST') {
+        if ($nombre === '' || $descripcion === '' || $categoria === '' || $precio < 0 || $stock < 0 || $imagePath === '') {
+            send_json(400, [
+                'status' => 'error',
+                'message' => 'Nombre, descripcion, categoria, precio, stock e imagen son requeridos'
+            ]);
+        }
+    } else {
+        if ($id <= 0) {
+            send_json(400, ['status' => 'error', 'message' => 'ID de producto requerido']);
+        }
+        if ($nombre === '' || $precio < 0 || $stock < 0 || $imagePath === '') {
+            send_json(400, [
+                'status' => 'error',
+                'message' => 'Nombre, precio, stock e imagen son requeridos'
+            ]);
+        }
     }
 
     if ($method === 'POST') {

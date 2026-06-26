@@ -291,16 +291,20 @@ if ($method === 'POST' && $action === 'reject') {
     }
 
     try {
-        $stmt = $conn->prepare('SELECT * FROM ordenes WHERE id = ?');
+        $conn->begin_transaction();
+
+        $stmt = $conn->prepare('SELECT * FROM ordenes WHERE id = ? FOR UPDATE');
         $stmt->bind_param('i', $orderId);
         $stmt->execute();
         $order = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
         if (!$order) {
+            $conn->rollback();
             send_json(404, ['status' => 'error', 'message' => 'Orden no encontrada']);
         }
         if ($order['status'] !== 'pendiente') {
+            $conn->rollback();
             send_json(400, ['status' => 'error', 'message' => 'Esta orden ya fue procesada']);
         }
 
@@ -326,8 +330,10 @@ if ($method === 'POST' && $action === 'reject') {
         $upd->execute();
         $upd->close();
 
+        $conn->commit();
         send_json(200, ['status' => 'success', 'message' => 'Compra rechazada']);
     } catch (Throwable $e) {
+        $conn->rollback();
         send_json(500, ['status' => 'error', 'message' => $e->getMessage()]);
     }
 }

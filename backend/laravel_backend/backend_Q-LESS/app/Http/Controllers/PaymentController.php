@@ -161,14 +161,7 @@ class PaymentController extends Controller
             return $item->cantidad * $item->producto->precio;
         });
 
-        foreach ($cartItems as $item) {
-
-            $producto = $item->producto;
-
-            $producto->stock -= $item->cantidad;
-
-            $producto->save();
-        }
+        // El stock ya se descontó al crear la reserva en CartReservationService.
 
         $orderNumber = rand(1000, 9999);
 

@@ -22,14 +22,17 @@ if (preg_match('#^/storage/.+#', $uri)) {
     }
 }
 
-// Compatibilidad: /products/* -> storage/products/*
-if (preg_match('#^/products/(.+)$#', $uri, $m)) {
-    $candidate = __DIR__ . '/storage/products/' . basename($m[1]);
-    if (is_file($candidate)) {
-        $mime = mime_content_type($candidate) ?: 'application/octet-stream';
-        header('Content-Type: ' . $mime);
-        readfile($candidate);
-        return true;
+// Compatibilidad: /products/* y /productos/* -> storage/productos|products/*
+if (preg_match('#^/(?:products|productos)/(.+)$#', $uri, $m)) {
+    $file = basename($m[1]);
+    foreach (['storage/productos', 'storage/products'] as $dir) {
+        $candidate = __DIR__ . '/' . $dir . '/' . $file;
+        if (is_file($candidate)) {
+            $mime = mime_content_type($candidate) ?: 'application/octet-stream';
+            header('Content-Type: ' . $mime);
+            readfile($candidate);
+            return true;
+        }
     }
 }
 

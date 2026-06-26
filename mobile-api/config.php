@@ -130,7 +130,7 @@ if (!defined('QLESS_LIGHTWEIGHT') || !QLESS_LIGHTWEIGHT) {
     ensure_default_admin($conn);
     ensure_demo_products($conn);
 
-    foreach (['storage', 'storage/products', 'storage/avatars'] as $dir) {
+    foreach (['storage', 'storage/products', 'storage/productos', 'storage/avatars'] as $dir) {
         $fullDir = __DIR__ . '/' . $dir;
         if (!is_dir($fullDir)) {
             @mkdir($fullDir, 0775, true);

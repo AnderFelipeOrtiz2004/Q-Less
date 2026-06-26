@@ -5,3 +5,5 @@ export 'interactive_scale_button.dart';
 export 'legal_terms_dialog.dart';
 export 'shimmer_placeholder.dart';
 export 'staggered_fade_in.dart';
+export 'product_grid_tile.dart';
+export 'sound_button.dart';

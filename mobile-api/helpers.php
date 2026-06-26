@@ -28,9 +28,9 @@ function ensure_default_admin(mysqli $conn): void
     $stmt->close();
 
     if ($exists) {
-        $upd = $conn->prepare('UPDATE users SET name = ?, password = ?, role = ? WHERE email = ?');
+        $upd = $conn->prepare('UPDATE users SET name = ?, role = ? WHERE email = ?');
         if ($upd) {
-            $upd->bind_param('ssss', $name, $password, $role, $email);
+            $upd->bind_param('sss', $name, $role, $email);
             $upd->execute();
             $upd->close();
         }
@@ -115,6 +115,7 @@ function ensure_users_table(mysqli $conn): void
     migrate_legacy_usuarios_table($conn);
     sync_users_display_names($conn);
     sync_users_display_names_v2($conn);
+    repair_null_timestamps($conn);
 }
 
 function ensure_users_commerce_columns(mysqli $conn): void
@@ -228,6 +229,37 @@ function ensure_productos_table(mysqli $conn): void
         $res = $conn->query("SHOW COLUMNS FROM productos LIKE '$column'");
         if ($res && $res->num_rows === 0) {
             @$conn->query("ALTER TABLE productos ADD COLUMN $column $definition");
+        }
+    }
+
+    repair_null_timestamps($conn, 'productos');
+}
+
+function repair_null_timestamps(mysqli $conn, ?string $table = null): void
+{
+    $tables = $table !== null ? [$table] : ['users', 'productos'];
+
+    foreach ($tables as $target) {
+        $res = $conn->query("SHOW COLUMNS FROM `$target` LIKE 'created_at'");
+        if (!$res || $res->num_rows === 0) {
+            continue;
+        }
+
+        @$conn->query(
+            "UPDATE `$target` SET created_at = NOW()
+             WHERE created_at IS NULL
+                OR created_at = '0000-00-00 00:00:00'
+                OR created_at = ''"
+        );
+
+        $resUpd = $conn->query("SHOW COLUMNS FROM `$target` LIKE 'updated_at'");
+        if ($resUpd && $resUpd->num_rows > 0) {
+            @$conn->query(
+                "UPDATE `$target` SET updated_at = COALESCE(NULLIF(updated_at, '0000-00-00 00:00:00'), created_at, NOW())
+                 WHERE updated_at IS NULL
+                    OR updated_at = '0000-00-00 00:00:00'
+                    OR updated_at = ''"
+            );
         }
     }
 }
@@ -357,11 +389,15 @@ function normalize_storage_image_path(?string $path): string
         return '';
     }
 
-    if (preg_match('#storage/(products|avatars)/[^\s?]+#i', $path, $matches)) {
-        return $matches[0];
+    if (preg_match('#(storage/(?:products|productos|avatars)/[^\s?]+)#i', $path, $matches)) {
+        return $matches[1];
     }
 
     if (str_starts_with($path, 'storage/')) {
+        return $path;
+    }
+
+    if (preg_match('#^https?://#i', $path)) {
         return $path;
     }
 
