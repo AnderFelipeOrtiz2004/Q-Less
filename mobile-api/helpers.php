@@ -28,9 +28,9 @@ function ensure_default_admin(mysqli $conn): void
     $stmt->close();
 
     if ($exists) {
-        $upd = $conn->prepare('UPDATE users SET name = ?, password = ?, role = ? WHERE email = ?');
+        $upd = $conn->prepare('UPDATE users SET name = ?, role = ? WHERE email = ?');
         if ($upd) {
-            $upd->bind_param('ssss', $name, $password, $role, $email);
+            $upd->bind_param('sss', $name, $role, $email);
             $upd->execute();
             $upd->close();
         }

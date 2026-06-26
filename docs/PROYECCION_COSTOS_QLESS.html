@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Proyección de costos — Q-LESS</title>
+  <style>
+    @page { size: A4; margin: 18mm 14mm; }
+    body { font-family: 'Segoe UI', Calibri, Arial, sans-serif; font-size: 10.5pt; color: #1a1a1a; line-height: 1.35; }
+    h1 { color: #2d8a2f; font-size: 20pt; margin-bottom: 4px; }
+    h2 { color: #2d8a2f; font-size: 13pt; margin-top: 22px; margin-bottom: 8px; border-bottom: 2px solid #c8e6c9; padding-bottom: 4px; page-break-after: avoid; }
+    h3 { font-size: 11pt; margin-top: 14px; }
+    .meta { background: #f4f8f4; border-left: 4px solid #3ec13b; padding: 10px 12px; margin: 12px 0 18px; font-size: 10pt; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 14px; font-size: 9pt; page-break-inside: avoid; }
+    th { background: #d9ead3; color: #1b3d1c; font-weight: 700; text-align: left; padding: 6px 5px; border: 1px solid #9cb89a; }
+    td { padding: 5px; border: 1px solid #ccc; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .num { text-align: right; white-space: nowrap; }
+    .total td { background: #e8f5e9; font-weight: 700; }
+    .note { font-size: 9pt; color: #555; font-style: italic; margin: 6px 0; }
+    .footer { margin-top: 20px; font-size: 9pt; color: #666; border-top: 1px solid #ddd; padding-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Proyección de costos — Proyecto Q-LESS</h1>
+  <div class="meta">
+    <strong>Moneda:</strong> pesos colombianos (COP) &nbsp;|&nbsp;
+    <strong>Alcance:</strong> Web Angular + Laravel + App Flutter + API PHP/Railway + MySQL compartida<br>
+    <strong>Duración desarrollo:</strong> 5 meses &nbsp;|&nbsp; <strong>Mantenimiento:</strong> 3 meses &nbsp;|&nbsp;
+    <strong>Clasificación:</strong> proyecto mediano
+  </div>
+
+  <h2>16.1 Talento humano</h2>
+  <table>
+    <tr><th>Rol</th><th>Actividad principal</th><th class="num">Horas</th><th class="num">Valor/hora</th><th class="num">Subtotal</th></tr>
+    <tr><td>Analista de requerimientos</td><td>Identificación de necesidades del CBA, requerimientos funcionales y no funcionales, actores (aprendiz, instructor, admin), historias de usuario y reglas del flujo de compras web y móvil</td><td class="num">22</td><td class="num">$28.000</td><td class="num">$616.000</td></tr>
+    <tr><td>Diseñador UI/UX</td><td>Diseño de wireframes y prototipos para la web Angular (login, catálogo, carrito, chatbot) y la app Flutter (grid productos, perfil, registro)</td><td class="num">24</td><td class="num">$28.000</td><td class="num">$672.000</td></tr>
+    <tr><td>Desarrollador frontend</td><td>Construcción del frontend Angular (login, productos, carrito, órdenes, chatbot) y la app Flutter (interfaces, animaciones, sonidos, APK)</td><td class="num">58</td><td class="num">$32.000</td><td class="num">$1.856.000</td></tr>
+    <tr><td>Desarrollador backend</td><td>Desarrollo del backend Laravel (API REST, migraciones, productos, usuarios, órdenes) y mobile-api PHP en Railway (sync, SMTP, Google)</td><td class="num">52</td><td class="num">$32.000</td><td class="num">$1.664.000</td></tr>
+    <tr><td>Tester o QA</td><td>Diseño y ejecución de pruebas manuales en web, app y API; validación de sincronización de productos y usuarios en MySQL</td><td class="num">26</td><td class="num">$26.000</td><td class="num">$676.000</td></tr>
+    <tr><td>Líder del proyecto</td><td>Planeación, seguimiento de entregas, control de versiones Git, revisión documental, coordinación del equipo y despliegue</td><td class="num">20</td><td class="num">$30.000</td><td class="num">$600.000</td></tr>
+    <tr class="total"><td colspan="4">Subtotal talento humano</td><td class="num">$6.084.000</td></tr>
+  </table>
+
+  <h2>16.2 Herramientas tecnológicas</h2>
+  <table>
+    <tr><th>Herramienta</th><th>Descripción</th><th>Tipo de costo</th><th class="num">Valor mensual</th><th>Tiempo</th><th class="num">Subtotal</th></tr>
+    <tr><td>VS Code</td><td>Editor para programar Angular, Laravel, PHP mobile-api y Flutter</td><td>Gratuito</td><td class="num">$0</td><td>5 meses</td><td class="num">$0</td></tr>
+    <tr><td>Angular CLI / Node.js</td><td>Framework y entorno para compilar y ejecutar el sitio web Angular</td><td>Gratuito</td><td class="num">$0</td><td>5 meses</td><td class="num">$0</td></tr>
+    <tr><td>Flutter SDK</td><td>Framework para desarrollar y compilar la APK Android de Q-LESS</td><td>Gratuito</td><td class="num">$0</td><td>5 meses</td><td class="num">$0</td></tr>
+    <tr><td>GitHub</td><td>Control de versiones del repositorio (frontend, backend, mobile-api, mobile_flutter)</td><td>Gratuito</td><td class="num">$0</td><td>5 meses</td><td class="num">$0</td></tr>
+    <tr><td>Railway (API + MySQL)</td><td>Hosting en la nube de mobile-api PHP y base de datos MySQL compartida con Laravel</td><td>Pago estimado</td><td class="num">$32.000</td><td>5 meses</td><td class="num">$160.000</td></tr>
+    <tr><td>Internet</td><td>Conexión para desarrollo local (XAMPP/Laravel), pruebas web, app, deploy y reuniones</td><td>Estimado</td><td class="num">$88.000</td><td>5 meses</td><td class="num">$440.000</td></tr>
+    <tr><td>Dominio</td><td>Nombre web personalizado del proyecto, si se publica con URL propia</td><td>Opcional</td><td class="num">—</td><td>1 año</td><td class="num">$55.000</td></tr>
+    <tr class="total"><td colspan="5">Subtotal herramientas tecnológicas</td><td class="num">$655.000</td></tr>
+  </table>
+  <p class="note">Adicionales sin costo: Laravel/Composer, XAMPP, Gmail SMTP, Google Cloud OAuth.</p>
+
+  <h2>16.3 Infraestructura y equipos</h2>
+  <table>
+    <tr><th>Recurso</th><th>Descripción</th><th class="num">Cant.</th><th>Valor unitario</th><th class="num">Subtotal</th></tr>
+    <tr><td>Computador portátil</td><td>Programar web Angular, backend Laravel, API PHP y compilar APK</td><td class="num">2</td><td>Recurso disponible</td><td class="num">$0</td></tr>
+    <tr><td>Celular Android</td><td>Pruebas de la APK en dispositivo físico</td><td class="num">1</td><td>Recurso disponible</td><td class="num">$0</td></tr>
+    <tr><td>Navegador web</td><td>Pruebas del sitio Angular en escritorio y responsive</td><td class="num">1</td><td>Recurso disponible</td><td class="num">$0</td></tr>
+    <tr><td>Internet móvil</td><td>Pruebas de la app fuera de red Wi‑Fi</td><td class="num">1</td><td>$25.000</td><td class="num">$25.000</td></tr>
+    <tr><td>Mouse / audífonos</td><td>Periféricos para desarrollo</td><td class="num">1</td><td>Recurso disponible</td><td class="num">$0</td></tr>
+    <tr><td>Amortización laptop (opcional)</td><td>Equipo $2.800.000 ÷ 48 meses × 5 meses</td><td class="num">1</td><td>$291.700</td><td class="num">$291.700</td></tr>
+    <tr class="total"><td colspan="4">Subtotal infraestructura y equipos</td><td class="num">$316.700</td></tr>
+  </table>
+
+  <h2>16.4 Pruebas</h2>
+  <table>
+    <tr><th>Actividad</th><th>Descripción</th><th class="num">Valor estimado</th></tr>
+    <tr><td>Diseño de casos de prueba</td><td>Login web/app, registro Gmail, CRUD productos Laravel, sync BD, carrito y aprobación admin</td><td class="num">$180.000</td></tr>
+    <tr><td>Pruebas manuales</td><td>Angular (catálogo, carrito, órdenes), Flutter (APK) y endpoints mobile-api</td><td class="num">$220.000</td></tr>
+    <tr><td>Pruebas automatizadas</td><td>Pruebas unitarias Angular (login, register) y auth.guard</td><td class="num">$180.000</td></tr>
+    <tr><td>Captura de evidencias</td><td>Pantallazos web, app y logs de API</td><td class="num">$90.000</td></tr>
+    <tr><td>Reporte de errores</td><td>Hallazgos, severidad, prioridad y corrección</td><td class="num">$110.000</td></tr>
+    <tr><td>Validación final</td><td>Revisión integrada web + app + BD</td><td class="num">$120.000</td></tr>
+    <tr class="total"><td colspan="2">Subtotal pruebas</td><td class="num">$900.000</td></tr>
+  </table>
+
+  <h2>16.5 Documentación</h2>
+  <table>
+    <tr><th>Documento</th><th>Descripción</th><th class="num">Valor estimado</th></tr>
+    <tr><td>Documento de análisis</td><td>Requerimientos, actores, módulos web y móvil, reglas de negocio</td><td class="num">$220.000</td></tr>
+    <tr><td>Documento técnico</td><td>Arquitectura Angular–Laravel–Flutter–Railway, modelo BD, APIs</td><td class="num">$280.000</td></tr>
+    <tr><td>Manual de usuario</td><td>Guía web y app para aprendiz, instructor y administrador</td><td class="num">$200.000</td></tr>
+    <tr><td>Manual técnico</td><td>Instalación XAMPP/Laravel, Railway, compilación APK</td><td class="num">$240.000</td></tr>
+    <tr><td>Informe de pruebas</td><td>Casos, resultados, evidencias y correcciones</td><td class="num">$160.000</td></tr>
+    <tr><td>Documento final consolidado</td><td>Informe integral con conclusiones y costos</td><td class="num">$150.000</td></tr>
+    <tr class="total"><td colspan="2">Subtotal documentación</td><td class="num">$1.250.000</td></tr>
+  </table>
+
+  <h2>16.6 Despliegue y puesta en marcha</h2>
+  <table>
+    <tr><th>Concepto</th><th>Descripción</th><th class="num">Valor estimado</th></tr>
+    <tr><td>Configuración del hosting</td><td>Despliegue mobile-api y MySQL en Railway</td><td class="num">$130.000</td></tr>
+    <tr><td>Configuración del backend</td><td>Laravel API REST, CORS, storage imágenes y mobile-api PHP</td><td class="num">$140.000</td></tr>
+    <tr><td>Configuración de base de datos</td><td>Migraciones Laravel y tablas mobile-api</td><td class="num">$120.000</td></tr>
+    <tr><td>Configuración de autenticación</td><td>Gmail, SMTP, Google Sign-In, términos y roles</td><td class="num">$110.000</td></tr>
+    <tr><td>Pruebas de despliegue</td><td>Verificación web, API Railway y APK con misma BD</td><td class="num">$120.000</td></tr>
+    <tr><td>Capacitación básica</td><td>Demostración a aprendices e instructores del CBA</td><td class="num">$130.000</td></tr>
+    <tr class="total"><td colspan="2">Subtotal despliegue y puesta en marcha</td><td class="num">$750.000</td></tr>
+  </table>
+
+  <h2>16.7 Mantenimiento</h2>
+  <table>
+    <tr><th>Actividad</th><th>Frecuencia</th><th class="num">Valor mensual</th><th>Tiempo</th><th class="num">Subtotal</th></tr>
+    <tr><td>Corrección de errores</td><td>Mensual</td><td class="num">$140.000</td><td>3 meses</td><td class="num">$420.000</td></tr>
+    <tr><td>Ajustes menores</td><td>Mensual</td><td class="num">$180.000</td><td>3 meses</td><td class="num">$540.000</td></tr>
+    <tr><td>Actualización de contenido o datos</td><td>Mensual</td><td class="num">$100.000</td><td>3 meses</td><td class="num">$300.000</td></tr>
+    <tr><td>Soporte a usuarios</td><td>Mensual</td><td class="num">$130.000</td><td>3 meses</td><td class="num">$390.000</td></tr>
+    <tr><td>Revisión de seguridad básica</td><td>Mensual</td><td class="num">$90.000</td><td>3 meses</td><td class="num">$270.000</td></tr>
+    <tr class="total"><td colspan="4">Subtotal mantenimiento</td><td class="num">$1.920.000</td></tr>
+  </table>
+
+  <h2>16.8 Resumen general</h2>
+  <table>
+    <tr><th>Categoría</th><th class="num">Valor estimado (COP)</th></tr>
+    <tr><td>Talento humano</td><td class="num">$6.084.000</td></tr>
+    <tr><td>Herramientas tecnológicas</td><td class="num">$655.000</td></tr>
+    <tr><td>Infraestructura y equipos</td><td class="num">$316.700</td></tr>
+    <tr><td>Pruebas</td><td class="num">$900.000</td></tr>
+    <tr><td>Documentación</td><td class="num">$1.250.000</td></tr>
+    <tr><td>Despliegue y puesta en marcha</td><td class="num">$750.000</td></tr>
+    <tr><td>Mantenimiento</td><td class="num">$1.920.000</td></tr>
+    <tr class="total"><td>Subtotal general</td><td class="num">$11.875.700</td></tr>
+    <tr class="total"><td>Imprevistos (10 %)</td><td class="num">$1.187.570</td></tr>
+    <tr class="total"><td>Total proyectado del proyecto</td><td class="num">$13.063.270</td></tr>
+  </table>
+
+  <h3>Sin amortización de laptop</h3>
+  <table>
+    <tr><th>Concepto</th><th class="num">Valor (COP)</th></tr>
+    <tr><td>Subtotal general</td><td class="num">$11.584.000</td></tr>
+    <tr><td>Imprevistos 10 %</td><td class="num">$1.158.400</td></tr>
+    <tr class="total"><td>Total proyectado</td><td class="num">$12.742.400</td></tr>
+  </table>
+
+  <h2>Componentes del repositorio</h2>
+  <table>
+    <tr><th>Carpeta</th><th>Tecnología</th><th>Función</th></tr>
+    <tr><td>frontend/</td><td>Angular</td><td>Sitio web: login, productos, carrito, órdenes, chatbot</td></tr>
+    <tr><td>backend/laravel_backend/backend_Q-LESS/</td><td>Laravel + MySQL</td><td>API REST, migraciones, lógica de negocio web</td></tr>
+    <tr><td>mobile-api/</td><td>PHP</td><td>API para la app móvil en Railway</td></tr>
+    <tr><td>mobile_flutter/</td><td>Flutter</td><td>APK Android sincronizada con la misma BD</td></tr>
+  </table>
+
+  <div class="footer">
+  Proyecto Q-LESS — Proyección de costos en pesos colombianos (COP). Estimación académica — proyecto mediano ($7M–$15M).
+  </div>
+</body>
+</html>

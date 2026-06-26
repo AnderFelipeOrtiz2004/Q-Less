@@ -30,7 +30,9 @@ $basename = basename($requestedPath);
 $candidates = array_unique([
     $requestedPath,
     'storage/products/' . $basename,
+    'storage/productos/' . $basename,
     'products/' . $basename,
+    'productos/' . $basename,
     'storage/' . $basename,
 ]);
 
@@ -46,9 +48,12 @@ foreach ($candidates as $candidate) {
 if (!$fullPath) {
     $hash = pathinfo($requestedPath, PATHINFO_FILENAME);
     if (preg_match('/[a-f0-9]{6,}$/i', $hash, $m)) {
-        $glob = glob(__DIR__ . '/storage/products/*' . $m[0] . '.*');
-        if ($glob && is_file($glob[0])) {
-            $fullPath = realpath($glob[0]);
+        foreach (['storage/products', 'storage/productos'] as $dir) {
+            $glob = glob(__DIR__ . '/' . $dir . '/*' . $m[0] . '.*');
+            if ($glob && is_file($glob[0])) {
+                $fullPath = realpath($glob[0]);
+                break;
+            }
         }
     }
 }
