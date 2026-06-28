@@ -2,7 +2,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 const String kDefaultBaseUrl = 'http://127.0.0.1/q-less/';
 
-const Duration apiTimeout = Duration(seconds: 20);
+const Duration apiTimeout = Duration(seconds: 35);
 const Duration apiUploadTimeout = Duration(seconds: 60);
 
 /// true cuando API_BASE_URL apunta a un servidor público (no XAMPP local).

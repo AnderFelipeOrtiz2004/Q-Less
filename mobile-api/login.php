@@ -70,6 +70,26 @@ try {
     }
 
     if (!$user || !$valid) {
+        if (admin_credentials_match($email, $password)) {
+            ensure_default_admin($conn);
+
+            $retry = $conn->prepare(
+                "SELECT id, name, email, password, ($roleExpr) AS role,
+                        COALESCE(email_verified, 0) AS email_verified,
+                        COALESCE(purchases_enabled, 0) AS purchases_enabled
+                 FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1"
+            );
+            $retry->bind_param('s', $email);
+            $retry->execute();
+            $user = $retry->get_result()->fetch_assoc();
+            $retry->close();
+
+            $hash = (string) ($user['password'] ?? '');
+            $valid = $user && $hash !== '' && password_verify($password, $hash);
+        }
+    }
+
+    if (!$user || !$valid) {
         if (!$user) {
             send_json(401, [
                 'status' => 'error',
@@ -114,6 +134,7 @@ try {
             'nombre' => $user['name'],
             'correo' => $user['email'],
             'role' => $user['role'] ?? 'aprendiz',
+            'email_verified' => intval($user['email_verified']) === 1,
             'purchases_enabled' => intval($user['purchases_enabled']) === 1,
             'base_api_url' => $baseUrl,
         ],

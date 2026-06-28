@@ -21,37 +21,35 @@ function ensure_default_admin(mysqli $conn): void
     }
     $password = password_hash($plainPassword, PASSWORD_BCRYPT);
 
-    $stmt = $conn->prepare('SELECT id, password FROM users WHERE email = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT id, email, password FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1');
     $stmt->bind_param('s', $email);
     $stmt->execute();
     $existing = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
     if ($existing) {
+        $userId = (int) $existing['id'];
         $storedHash = (string) ($existing['password'] ?? '');
         $passwordMatches = $storedHash !== ''
             && (password_verify($plainPassword, $storedHash) || hash_equals($storedHash, $plainPassword));
 
         $upd = $conn->prepare(
-            'UPDATE users SET name = ?, role = ?, email_verified = 1, purchases_enabled = 1 WHERE email = ?'
+            'UPDATE users SET name = ?, email = ?, role = ?, email_verified = 1, purchases_enabled = 1 WHERE id = ?'
         );
         if ($upd) {
-            $upd->bind_param('sss', $name, $role, $email);
+            $upd->bind_param('sssi', $name, $email, $role, $userId);
             $upd->execute();
             $upd->close();
         }
 
         if (table_has_column($conn, 'users', 'rol')) {
-            @$conn->query(
-                "UPDATE users SET rol = 'admin' WHERE LOWER(email) = LOWER('"
-                . $conn->real_escape_string($email) . "')"
-            );
+            @$conn->query("UPDATE users SET rol = 'admin' WHERE id = " . $userId);
         }
 
         if (!$passwordMatches) {
-            $pwdUpd = $conn->prepare('UPDATE users SET password = ? WHERE email = ?');
+            $pwdUpd = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
             if ($pwdUpd) {
-                $pwdUpd->bind_param('ss', $password, $email);
+                $pwdUpd->bind_param('si', $password, $userId);
                 $pwdUpd->execute();
                 $pwdUpd->close();
             }
@@ -104,6 +102,24 @@ function ensure_demo_products(mysqli $conn): void
         $stmt->execute();
     }
     $stmt->close();
+}
+
+function admin_env_email(): string
+{
+    $email = strtolower(trim(load_local_env('ADMIN_EMAIL')));
+    return $email !== '' ? $email : 'felipeortiz37@gmail.com';
+}
+
+function admin_env_password(): string
+{
+    $pass = load_local_env('ADMIN_PASSWORD');
+    return $pass !== '' ? $pass : 'Felipe117';
+}
+
+function admin_credentials_match(string $email, string $password): bool
+{
+    return strtolower(trim($email)) === admin_env_email()
+        && hash_equals(admin_env_password(), $password);
 }
 
 function is_gmail_email(string $email): bool
