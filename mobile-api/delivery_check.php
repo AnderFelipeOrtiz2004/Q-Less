@@ -14,8 +14,13 @@ try {
     ensure_users_table($conn);
     ensure_productos_table($conn);
     ensure_ordenes_table($conn);
-    ensure_default_admin($conn);
-    ensure_demo_products($conn);
+
+    try {
+        ensure_default_admin($conn);
+        ensure_demo_products($conn);
+    } catch (Throwable $e) {
+        // Continuar aunque falle seed/migración puntual
+    }
 
     $adminEmail = admin_env_email();
     $productCount = 0;
