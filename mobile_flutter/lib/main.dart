@@ -16,6 +16,7 @@ import 'widgets/interactive_scale_button.dart';
 import 'widgets/legal_terms_dialog.dart';
 import 'widgets/splash_gate.dart';
 import 'config/legal_terms.dart';
+import 'config/api_config.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -231,7 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loginWithGoogle() async {
     SoundService.playClick();
 
-    final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID']?.trim() ?? '';
+    final webClientId = googleWebClientIdFromEnv();
     if (webClientId.isEmpty) {
       setState(() {
         _errorMessage =
