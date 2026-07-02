@@ -3,6 +3,7 @@ require_once __DIR__ . '/cors.php';
 header('Content-Type: application/json; charset=UTF-8');
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/helpers.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -28,7 +29,19 @@ try {
     }
 
     $verifyUrl = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($idToken);
-    $verifyResponse = @file_get_contents($verifyUrl);
+    $verifyResponse = false;
+    if (function_exists('curl_init')) {
+        $ch = curl_init($verifyUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 20,
+        ]);
+        $verifyResponse = curl_exec($ch);
+        curl_close($ch);
+    }
+    if ($verifyResponse === false) {
+        $verifyResponse = @file_get_contents($verifyUrl);
+    }
     if ($verifyResponse === false) {
         send_json(502, ['status' => 'error', 'message' => 'No se pudo validar el token de Google']);
     }
@@ -36,6 +49,20 @@ try {
     $googleUser = json_decode($verifyResponse, true);
     if (!is_array($googleUser) || empty($googleUser['email'])) {
         send_json(401, ['status' => 'error', 'message' => 'Token de Google inválido']);
+    }
+
+    $expectedClientId = trim(load_local_env('GOOGLE_CLIENT_ID'));
+    if ($expectedClientId === '') {
+        send_json(503, [
+            'status' => 'error',
+            'message' => 'Google Sign-In no está configurado en el servidor. Agrega GOOGLE_CLIENT_ID en Railway.',
+            'code' => 'google_not_configured',
+        ]);
+    }
+
+    $aud = trim((string) ($googleUser['aud'] ?? ''));
+    if ($aud === '' || !hash_equals($expectedClientId, $aud)) {
+        send_json(401, ['status' => 'error', 'message' => 'Token de Google no autorizado para esta aplicación']);
     }
 
     $email = strtolower(trim((string) $googleUser['email']));
@@ -112,6 +139,7 @@ try {
             'nombre' => $user['name'] ?? $name,
             'correo' => $user['email'] ?? $email,
             'role' => $user['role'] ?? 'aprendiz',
+            'email_verified' => true,
             'purchases_enabled' => intval($user['purchases_enabled'] ?? 0) === 1,
             'base_api_url' => $baseUrl,
         ],

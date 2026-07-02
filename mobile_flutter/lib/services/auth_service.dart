@@ -85,8 +85,12 @@ class AuthService {
       return {
         'success':
             response.statusCode == 200 && jsonResponse['status'] == 'success',
-        'message': jsonResponse['message'] ?? 'Error en el servidor',
+        'message': jsonResponse['message'] ??
+            (response.statusCode >= 500
+                ? 'Error del servidor (${response.statusCode}). El API necesita actualizarse en Railway.'
+                : 'Error en el servidor'),
         'data': jsonResponse['data'],
+        'code': jsonResponse['code'],
       };
     } catch (_) {
       return {
@@ -286,6 +290,7 @@ class AuthService {
 
   static Future<Map<String, dynamic>> requestPasswordReset({
     required String email,
+    bool resend = false,
   }) async {
     final networkError = await _prepareMobileConnection();
     if (networkError != null) {
@@ -302,7 +307,7 @@ class AuthService {
               'Accept': 'application/json',
             },
             body: jsonEncode({
-              'action': 'request',
+              'action': resend ? 'resend' : 'request',
               'email': email.trim(),
             }),
           )
@@ -313,6 +318,7 @@ class AuthService {
         'success':
             response.statusCode == 200 && jsonResponse['status'] == 'success',
         'message': jsonResponse['message'] ?? 'No se pudo enviar el código',
+        'code': jsonResponse['code'],
       };
     } catch (_) {
       return {

@@ -4,6 +4,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 require_once 'config.php';
 require_once __DIR__ . '/mail_helpers.php';
+require_once __DIR__ . '/auth_actions.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -48,35 +49,31 @@ function find_user_by_email(mysqli $conn, string $email): ?array
     return $user ?: null;
 }
 
-ensure_password_reset_table($conn);
-
-$method = $_SERVER['REQUEST_METHOD'];
-$jsonInput = json_decode(file_get_contents('php://input'), true) ?: [];
-$input = array_merge($_REQUEST, is_array($jsonInput) ? $jsonInput : []);
-$action = trim((string) ($input['action'] ?? ''));
-
-if ($method !== 'POST') {
-    send_json(405, ['status' => 'error', 'message' => 'Método no permitido']);
-}
-
-if ($action === 'request') {
-    $email = strtolower(trim((string) ($input['email'] ?? $input['correo'] ?? '')));
+function send_password_reset_code(mysqli $conn, string $email): array
+{
+    $email = strtolower(trim($email));
 
     if (!is_valid_email($email) || !is_gmail_email($email)) {
-        send_json(400, ['status' => 'error', 'message' => 'Debes usar un correo Gmail válido']);
+        return ['ok' => false, 'status' => 400, 'message' => 'Debes usar un correo Gmail válido'];
     }
 
     $user = find_user_by_email($conn, $email);
     if (!$user) {
-        send_json(404, ['status' => 'error', 'message' => 'No existe una cuenta con ese correo']);
+        return [
+            'ok' => false,
+            'status' => 200,
+            'message' => 'Si el correo está registrado, recibirás un código en unos minutos.',
+            'generic' => true,
+        ];
     }
 
     if (!smtp_is_configured()) {
-        send_json(503, [
-            'status' => 'error',
-            'message' => 'Correo no configurado en el servidor. Configura SMTP_USER, SMTP_PASS y SMTP_FROM en Railway.',
+        return [
+            'ok' => false,
+            'status' => 503,
+            'message' => 'Correo no configurado en el servidor. Configura SMTP en Railway (Brevo o Gmail).',
             'code' => 'smtp_not_configured',
-        ]);
+        ];
     }
 
     $conn->query(
@@ -96,28 +93,53 @@ if ($action === 'request') {
     $stmt->close();
 
     $userName = $user['name'] ?? 'Usuario';
-    $mailBody = "Hola {$userName},\n\n"
-        . "Tu código para restablecer la contraseña en Q-LESS es: {$code}\n\n"
-        . "Válido por 20 minutos. Si no solicitaste este cambio, ignora este mensaje.\n\n"
-        . "— Equipo Q-LESS";
-
-    $sent = send_reset_email(
+    $mail = qless_password_reset_email($userName, $code, $email);
+    $sent = send_app_email(
         $email,
         'Código de recuperación Q-LESS',
-        $mailBody
+        $mail['plain'],
+        $mail['html']
     );
 
     if (!$sent) {
-        send_json(503, [
-            'status' => 'error',
-            'message' => 'No se pudo enviar el correo. Configura SMTP_USER y SMTP_PASS (Gmail) en Railway.',
-        ]);
+        return [
+            'ok' => false,
+            'status' => 503,
+            'message' => 'No se pudo enviar el correo. Revisa SMTP_USER y SMTP_PASS en Railway.',
+        ];
     }
 
-    send_json(200, [
-        'status' => 'success',
-        'message' => 'Te enviamos un código de verificación a tu correo de Google/Gmail.',
-    ]);
+    return [
+        'ok' => true,
+        'status' => 200,
+        'message' => 'Te enviamos un código y un enlace para restablecer tu contraseña.',
+        'reset_url' => qless_reset_password_link($email, $code),
+    ];
+}
+
+ensure_password_reset_table($conn);
+
+$method = $_SERVER['REQUEST_METHOD'];
+$jsonInput = json_decode(file_get_contents('php://input'), true) ?: [];
+$input = array_merge($_REQUEST, is_array($jsonInput) ? $jsonInput : []);
+$action = trim((string) ($input['action'] ?? ''));
+
+if ($method !== 'POST') {
+    send_json(405, ['status' => 'error', 'message' => 'Método no permitido']);
+}
+
+if ($action === 'request' || $action === 'resend') {
+    $email = strtolower(trim((string) ($input['email'] ?? $input['correo'] ?? '')));
+    $result = send_password_reset_code($conn, $email);
+    send_json(
+        $result['status'] ?? ($result['ok'] ? 200 : 400),
+        [
+            'status' => $result['ok'] ? 'success' : 'error',
+            'message' => $result['message'],
+            'code' => $result['code'] ?? null,
+            'reset_url' => $result['reset_url'] ?? null,
+        ]
+    );
 }
 
 if ($action === 'reset') {
@@ -125,49 +147,11 @@ if ($action === 'reset') {
     $code = trim((string) ($input['code'] ?? ''));
     $newPassword = (string) ($input['password'] ?? $input['new_password'] ?? '');
 
-    if (!is_valid_email($email) || !is_gmail_email($email) || $code === '') {
-        send_json(400, ['status' => 'error', 'message' => 'Correo Gmail y código son requeridos']);
-    }
-    if (strlen($newPassword) < 6) {
-        send_json(400, ['status' => 'error', 'message' => 'La contraseña debe tener al menos 6 caracteres']);
-    }
-
-    $stmt = $conn->prepare(
-        "SELECT id, code_hash FROM password_reset_codes
-         WHERE email = ? AND used_at IS NULL AND expires_at > NOW()
-         ORDER BY id DESC LIMIT 1"
+    $result = perform_password_reset($conn, $email, $code, $newPassword);
+    send_json(
+        $result['ok'] ? 200 : 400,
+        ['status' => $result['ok'] ? 'success' : 'error', 'message' => $result['message']]
     );
-    $stmt->bind_param('s', $email);
-    $stmt->execute();
-    $resetRow = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    if (!$resetRow || !password_verify($code, $resetRow['code_hash'])) {
-        send_json(400, ['status' => 'error', 'message' => 'Código inválido o expirado']);
-    }
-
-    $user = find_user_by_email($conn, $email);
-    if (!$user) {
-        send_json(404, ['status' => 'error', 'message' => 'Usuario no encontrado']);
-    }
-
-    $passwordHash = password_hash($newPassword, PASSWORD_BCRYPT);
-    $upd = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
-    $userId = (int) $user['id'];
-    $upd->bind_param('si', $passwordHash, $userId);
-    $upd->execute();
-    $upd->close();
-
-    $mark = $conn->prepare('UPDATE password_reset_codes SET used_at = NOW() WHERE id = ?');
-    $resetId = (int) $resetRow['id'];
-    $mark->bind_param('i', $resetId);
-    $mark->execute();
-    $mark->close();
-
-    send_json(200, [
-        'status' => 'success',
-        'message' => 'Contraseña actualizada. Ya puedes iniciar sesión.',
-    ]);
 }
 
 send_json(400, ['status' => 'error', 'message' => 'Acción no válida']);

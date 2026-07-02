@@ -6,52 +6,50 @@ function ensure_default_admin(mysqli $conn): void
 
     $email = strtolower(trim(load_local_env('ADMIN_EMAIL')));
     if ($email === '') {
-        $email = 'felipeortiz37@gmail.com';
+        $email = 'admin@qless.app';
     }
 
     $name = load_local_env('ADMIN_NAME');
     if ($name === '') {
-        $name = 'Felipe Ortiz';
+        $name = 'Administrador Q-LESS';
     }
 
     $role = 'admin';
     $plainPassword = load_local_env('ADMIN_PASSWORD');
     if ($plainPassword === '') {
-        $plainPassword = 'Felipe117';
+        $plainPassword = 'QlessAdmin2026!';
     }
     $password = password_hash($plainPassword, PASSWORD_BCRYPT);
 
-    $stmt = $conn->prepare('SELECT id, password FROM users WHERE email = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT id, email, password FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1');
     $stmt->bind_param('s', $email);
     $stmt->execute();
     $existing = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
     if ($existing) {
+        $userId = (int) $existing['id'];
         $storedHash = (string) ($existing['password'] ?? '');
         $passwordMatches = $storedHash !== ''
             && (password_verify($plainPassword, $storedHash) || hash_equals($storedHash, $plainPassword));
 
         $upd = $conn->prepare(
-            'UPDATE users SET name = ?, role = ?, email_verified = 1, purchases_enabled = 1 WHERE email = ?'
+            'UPDATE users SET name = ?, email = ?, role = ?, email_verified = 1, purchases_enabled = 1 WHERE id = ?'
         );
         if ($upd) {
-            $upd->bind_param('sss', $name, $role, $email);
+            $upd->bind_param('sssi', $name, $email, $role, $userId);
             $upd->execute();
             $upd->close();
         }
 
         if (table_has_column($conn, 'users', 'rol')) {
-            @$conn->query(
-                "UPDATE users SET rol = 'admin' WHERE LOWER(email) = LOWER('"
-                . $conn->real_escape_string($email) . "')"
-            );
+            @$conn->query("UPDATE users SET rol = 'admin' WHERE id = " . $userId);
         }
 
         if (!$passwordMatches) {
-            $pwdUpd = $conn->prepare('UPDATE users SET password = ? WHERE email = ?');
+            $pwdUpd = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
             if ($pwdUpd) {
-                $pwdUpd->bind_param('ss', $password, $email);
+                $pwdUpd->bind_param('si', $password, $userId);
                 $pwdUpd->execute();
                 $pwdUpd->close();
             }
@@ -104,6 +102,24 @@ function ensure_demo_products(mysqli $conn): void
         $stmt->execute();
     }
     $stmt->close();
+}
+
+function admin_env_email(): string
+{
+    $email = strtolower(trim(load_local_env('ADMIN_EMAIL')));
+    return $email !== '' ? $email : 'admin@qless.app';
+}
+
+function admin_env_password(): string
+{
+    $pass = load_local_env('ADMIN_PASSWORD');
+    return $pass !== '' ? $pass : 'QlessAdmin2026!';
+}
+
+function admin_credentials_match(string $email, string $password): bool
+{
+    return strtolower(trim($email)) === admin_env_email()
+        && hash_equals(admin_env_password(), $password);
 }
 
 function is_gmail_email(string $email): bool
@@ -162,7 +178,12 @@ function ensure_users_commerce_columns(mysqli $conn): void
     $flagFile = __DIR__ . '/storage/.users_commerce_v1';
     if (!is_file($flagFile)) {
         @$conn->query('UPDATE users SET email_verified = 1');
-        @$conn->query("UPDATE users SET purchases_enabled = 1 WHERE LOWER(role) = 'admin' OR LOWER(COALESCE(rol, '')) = 'admin'");
+        $adminWhere = "LOWER(role) = 'admin'";
+        $rolCheck = $conn->query("SHOW COLUMNS FROM users LIKE 'rol'");
+        if ($rolCheck && $rolCheck->num_rows > 0) {
+            $adminWhere = "(LOWER(role) = 'admin' OR LOWER(rol) = 'admin')";
+        }
+        @$conn->query("UPDATE users SET purchases_enabled = 1 WHERE {$adminWhere}");
         @file_put_contents($flagFile, date('c'));
     }
 }
@@ -265,6 +286,11 @@ function repair_null_timestamps(mysqli $conn, ?string $table = null): void
     $tables = $table !== null ? [$table] : ['users', 'productos'];
 
     foreach ($tables as $target) {
+        $exists = $conn->query("SHOW TABLES LIKE '{$target}'");
+        if (!$exists || $exists->num_rows === 0) {
+            continue;
+        }
+
         $res = $conn->query("SHOW COLUMNS FROM `$target` LIKE 'created_at'");
         if (!$res || $res->num_rows === 0) {
             continue;

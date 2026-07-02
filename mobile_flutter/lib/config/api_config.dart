@@ -1,8 +1,14 @@
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+/// URL y Google Client ID de producción (fallback si .env no carga en el APK).
+const String kProductionApiUrl =
+    'https://mobile-api-production-21d2.up.railway.app/';
+const String kProductionGoogleWebClientId =
+    '913624013632-365sp1sm1r5tfk3rokl4tdlo52vkbaf1.apps.googleusercontent.com';
+
 const String kDefaultBaseUrl = 'http://127.0.0.1/q-less/';
 
-const Duration apiTimeout = Duration(seconds: 20);
+const Duration apiTimeout = Duration(seconds: 60);
 const Duration apiUploadTimeout = Duration(seconds: 60);
 
 /// true cuando API_BASE_URL apunta a un servidor público (no XAMPP local).
@@ -41,4 +47,18 @@ String normalizeApiBaseUrl(String? configuredUrl) {
   return url.endsWith('/') ? url : '$url/';
 }
 
-String baseUrlFromEnv() => normalizeApiBaseUrl(dotenv.env['API_BASE_URL']);
+String baseUrlFromEnv() {
+  final raw = dotenv.env['API_BASE_URL'];
+  if (raw != null && raw.trim().isNotEmpty) {
+    return normalizeApiBaseUrl(raw);
+  }
+  return kProductionApiUrl;
+}
+
+String googleWebClientIdFromEnv() {
+  final raw = dotenv.env['GOOGLE_WEB_CLIENT_ID'];
+  if (raw != null && raw.trim().isNotEmpty) {
+    return raw.trim();
+  }
+  return kProductionGoogleWebClientId;
+}

@@ -35,5 +35,6 @@ backend/storage/products/*
 *.iml
 .DS_Store
 
-# APK (publicar en GitHub Releases)
-releases/*.apk
+# APK release (sí subir las versiones etiquetadas)
+releases/*
+!releases/Q-LESS-v*.apk
