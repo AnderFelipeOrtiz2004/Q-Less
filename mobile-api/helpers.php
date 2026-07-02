@@ -196,6 +196,19 @@ function ensure_users_commerce_columns(mysqli $conn): void
         @$conn->query("UPDATE users SET purchases_enabled = 1 WHERE {$adminWhere}");
         @file_put_contents($flagFile, date('c'));
     }
+
+    $gmailFlag = __DIR__ . '/storage/.users_gmail_purchases_v1';
+    if (!is_file($gmailFlag)) {
+        @$conn->query(
+            "UPDATE users SET purchases_enabled = 1
+             WHERE COALESCE(email_verified, 0) = 1
+               AND (
+                 LOWER(email) LIKE '%@gmail.com'
+                 OR LOWER(email) LIKE '%@googlemail.com'
+               )"
+        );
+        @file_put_contents($gmailFlag, date('c'));
+    }
 }
 
 function ensure_users_terms_columns(mysqli $conn): void
@@ -547,13 +560,6 @@ function user_can_purchase(mysqli $conn, int $userId): array
     }
     if (intval($user['email_verified']) !== 1) {
         return ['ok' => false, 'message' => 'Debes verificar tu correo Gmail antes de comprar.'];
-    }
-    if (intval($user['purchases_enabled']) !== 1) {
-        return [
-            'ok' => false,
-            'message' => 'Tus compras aún no están habilitadas. Un administrador debe activarlas.',
-            'code' => 'purchases_disabled',
-        ];
     }
 
     return ['ok' => true, 'user' => $user];

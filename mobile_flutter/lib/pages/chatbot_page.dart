@@ -136,6 +136,7 @@ class _ChatbotPageState extends State<ChatbotPage> {
       _currentSession.history.add(userEntry);
       _isLoading = true;
       _messageController.clear();
+      _suggestions = [];
     });
     await _persistAll();
 
@@ -146,28 +147,17 @@ class _ChatbotPageState extends State<ChatbotPage> {
         userId: widget.userId,
       );
       if (mounted) {
-        final segments = _splitBotResponse(reply.text);
-        final botMessages = segments.asMap().entries.map((entry) {
-          final segment = entry.value;
-          final bubbleColor = _botBubbleColorForSegment(segment, entry.key);
-          return ChatMessage(
-            text: segment,
-            isUser: false,
-            backgroundColor: bubbleColor,
-            textColor: _textColorForBubble(bubbleColor),
-          );
-        }).toList();
-
         setState(() {
-          _messages.addAll(botMessages);
+          _messages.add(ChatMessage(
+            text: reply.text,
+            isUser: false,
+            useFormattedBotLayout: true,
+          ));
           final botEntry = {'role': 'model', 'content': reply.text};
           _chatHistory.add(botEntry);
-          _currentSession.messages.addAll(botMessages);
+          _currentSession.messages.add(_messages.last);
           _currentSession.history.add(botEntry);
           _currentSession.updatedAt = DateTime.now();
-          if (reply.suggestions.isNotEmpty) {
-            _suggestions = reply.suggestions;
-          }
           _upsertCurrentSession();
           _isLoading = false;
         });
@@ -210,8 +200,10 @@ class _ChatbotPageState extends State<ChatbotPage> {
     _sendMessage();
   }
 
+  bool get _hasUserMessages => _messages.any((message) => message.isUser);
+
   Widget _buildSuggestions() {
-    if (_suggestions.isEmpty || _isLoading) {
+    if (_suggestions.isEmpty || _isLoading || _hasUserMessages) {
       return const SizedBox.shrink();
     }
 
@@ -232,10 +224,14 @@ class _ChatbotPageState extends State<ChatbotPage> {
             child: ActionChip(
               label: Text(
                 suggestion,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1B5E20),
+                ),
               ),
-              backgroundColor: const Color(0xFFE8F5E9),
-              side: const BorderSide(color: Color(0xFFB8DEB9)),
+              backgroundColor: const Color(0xFFF1F8F2),
+              side: const BorderSide(color: Color(0xFF81C784)),
               elevation: 2,
               shadowColor: Colors.black26,
               onPressed: () {
@@ -259,56 +255,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
     } else {
       _savedSessions.insert(0, _currentSession);
     }
-  }
-
-  List<String> _splitBotResponse(String response) {
-    final parts = <String>[];
-    final sections = RegExp(
-      r'(?=MATERIALES|PASOS|DISPONIBLES EN PRODUCTOS|CONSEJOS)',
-      caseSensitive: false,
-    );
-    final chunks = response.split(sections);
-    for (final chunk in chunks) {
-      final trimmed = chunk.trim();
-      if (trimmed.isNotEmpty) parts.add(trimmed);
-    }
-    if (parts.isNotEmpty) return parts;
-
-    return response
-        .split(RegExp(r'\s*(?:\r?\n){2}\s*'))
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty)
-        .toList();
-  }
-
-  Color _botBubbleColorForSegment(String text, int segmentIndex) {
-    final normalized = text.toUpperCase();
-    if (normalized.contains('MATERIALES')) {
-      return const Color(0xFF2E7D4A);
-    }
-    if (normalized.contains('PASOS')) {
-      return const Color(0xFF56C900);
-    }
-    if (normalized.contains('DISPONIBLES EN PRODUCTOS')) {
-      return const Color(0xFF1E88A8);
-    }
-    if (normalized.contains('CONSEJOS')) {
-      return const Color(0xFFD4940A);
-    }
-
-    final fallback = [
-      const Color(0xFF2E7D4A),
-      const Color(0xFF56C900),
-      const Color(0xFF1E88A8),
-      const Color(0xFFD4940A),
-    ];
-    return fallback[segmentIndex % fallback.length];
-  }
-
-  Color _textColorForBubble(Color bubbleColor) {
-    return bubbleColor.computeLuminance() > 0.58
-        ? Colors.black87
-        : Colors.white;
   }
 
   ChatSession _createSession({String? title}) {
@@ -654,7 +600,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
               padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: TypingIndicator(),
             ),
-          if (_messages.isNotEmpty) _buildSuggestions(),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -850,6 +795,7 @@ class ChatMessage extends StatelessWidget {
   final Color? textColor;
   final String? userAvatarPath;
   final String? userAvatarUrl;
+  final bool useFormattedBotLayout;
 
   const ChatMessage({
     super.key,
@@ -859,6 +805,7 @@ class ChatMessage extends StatelessWidget {
     this.textColor,
     this.userAvatarPath,
     this.userAvatarUrl,
+    this.useFormattedBotLayout = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -866,6 +813,7 @@ class ChatMessage extends StatelessWidget {
         'isUser': isUser,
         if (backgroundColor != null) 'backgroundColor': backgroundColor!.toARGB32(),
         if (textColor != null) 'textColor': textColor!.toARGB32(),
+        'useFormattedBotLayout': useFormattedBotLayout,
       };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
@@ -877,6 +825,7 @@ class ChatMessage extends StatelessWidget {
           : null,
       textColor:
           json['textColor'] is int ? Color(json['textColor'] as int) : null,
+      useFormattedBotLayout: json['useFormattedBotLayout'] == true,
     );
   }
 
@@ -915,6 +864,9 @@ class ChatMessage extends StatelessWidget {
                   color: backgroundColor ??
                       (isUser ? const Color(0xFF3EC13B) : Colors.white),
                   borderRadius: BorderRadius.circular(16),
+                  border: !isUser
+                      ? Border.all(color: const Color(0xFFD7E8D8))
+                      : null,
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.05),
@@ -923,14 +875,16 @@ class ChatMessage extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: Text(
-                  text,
-                  style: TextStyle(
-                    color: textColor ??
-                        (isUser ? Colors.white : Colors.black87),
-                    fontSize: 15,
-                  ),
-                ),
+                child: !isUser && useFormattedBotLayout
+                    ? BotFormattedContent(text: text)
+                    : Text(
+                        text,
+                        style: TextStyle(
+                          color: textColor ??
+                              (isUser ? Colors.white : Colors.black87),
+                          fontSize: 15,
+                        ),
+                      ),
               ),
             ),
             if (isUser) ...[
@@ -943,6 +897,231 @@ class ChatMessage extends StatelessWidget {
             ],
           ],
         ),
+    );
+  }
+}
+
+class BotFormattedContent extends StatelessWidget {
+  final String text;
+
+  const BotFormattedContent({super.key, required this.text});
+
+  static const _sectionTitles = [
+    'MATERIALES',
+    'PASOS',
+    'DISPONIBLES EN PRODUCTOS',
+    'CONSEJOS',
+  ];
+
+  static const _sectionColors = {
+    'MATERIALES': Color(0xFF2E7D32),
+    'PASOS': Color(0xFF43A047),
+    'DISPONIBLES EN PRODUCTOS': Color(0xFF388E3C),
+    'CONSEJOS': Color(0xFF66BB6A),
+  };
+
+  List<Map<String, String>> _parseSections(String raw) {
+    final sections = <Map<String, String>>[];
+    final pattern = RegExp(
+      r'(MATERIALES|PASOS|DISPONIBLES EN PRODUCTOS|CONSEJOS)\s*\n?',
+      caseSensitive: false,
+    );
+    final matches = pattern.allMatches(raw).toList();
+
+    if (matches.isEmpty) {
+      return [
+        {'title': '', 'body': raw.trim()},
+      ];
+    }
+
+    for (var i = 0; i < matches.length; i++) {
+      final title = matches[i].group(1)!.toUpperCase();
+      final start = matches[i].end;
+      final end = i + 1 < matches.length ? matches[i + 1].start : raw.length;
+      final body = raw.substring(start, end).trim();
+      sections.add({'title': title, 'body': body});
+    }
+    return sections;
+  }
+
+  List<String> _parseLines(String body) {
+    return body
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+  }
+
+  Widget _buildProductRow(String line) {
+    final cleaned = line.replaceFirst(RegExp(r'^[-•]\s*'), '');
+    final parts = cleaned.split('·').map((p) => p.trim()).toList();
+    final name = parts.isNotEmpty ? parts[0] : cleaned;
+    final category = parts.length > 1 ? parts[1] : '';
+    final price = parts.length > 2 ? parts[2] : '';
+    final stock = parts.length > 3 ? parts[3] : '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7FBF7),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFC8E6C9)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.inventory_2_outlined, size: 18, color: Color(0xFF2E7D32)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: Color(0xFF1B5E20),
+                  ),
+                ),
+                if (category.isNotEmpty)
+                  Text(
+                    category,
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    if (price.isNotEmpty)
+                      Text(
+                        price,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    if (stock.isNotEmpty) ...[
+                      const SizedBox(width: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          stock,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2E7D32),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListItem(String line, int index, bool numbered) {
+    final cleaned = line.replaceFirst(RegExp(r'^[-•]\s*'), '');
+    final stepText = numbered
+        ? cleaned.replaceFirst(RegExp(r'^\d+[\).\s-]+'), '')
+        : cleaned;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5E9),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Text(
+              numbered ? '${index + 1}' : '•',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              stepText.isEmpty ? cleaned : stepText,
+              style: const TextStyle(fontSize: 14, height: 1.35),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sections = _parseSections(text);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: sections.map((section) {
+        final title = section['title'] ?? '';
+        final body = section['body'] ?? '';
+        final lines = _parseLines(body);
+        final accent = _sectionColors[title] ?? const Color(0xFF43A047);
+        final isProducts = title == 'DISPONIBLES EN PRODUCTOS';
+        final isSteps = title == 'PASOS';
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (title.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
+                      color: accent,
+                    ),
+                  ),
+                ),
+              if (isProducts)
+                ...lines.map(_buildProductRow)
+              else if (lines.isEmpty)
+                Text(body, style: const TextStyle(fontSize: 14, height: 1.35))
+              else
+                ...lines.asMap().entries.map(
+                      (entry) => _buildListItem(
+                        entry.value,
+                        entry.key,
+                        isSteps || RegExp(r'^\d+[\).\s-]').hasMatch(entry.value),
+                      ),
+                    ),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }

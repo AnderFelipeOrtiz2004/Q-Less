@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../models/index.dart';
 import '../services/sound_service.dart';
@@ -70,6 +71,78 @@ class _ProfilePageState extends State<ProfilePage> {
     SoundService.setEnabled(value);
     if (value) SoundService.playClick();
     setState(() => _soundsEnabled = value);
+  }
+
+  Future<void> _openWebVersion() async {
+    final uri = Uri.parse('https://frontend-production-1a74.up.railway.app/register');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo abrir la versión web'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Widget _webVersionCard() {
+    return FadeSlideEntry(
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE6EEE6)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.language, color: Color(0xFF3EC13B), size: 20),
+                SizedBox(width: 8),
+                Text(
+                  'También en la web',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Puedes usar Q-LESS desde tu teléfono o PC en el navegador.',
+              style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.35),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  SoundService.playNavigate();
+                  _openWebVersion();
+                },
+                icon: const Icon(Icons.open_in_new, size: 18),
+                label: const Text('Abrir versión web'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF2E7D32),
+                  side: const BorderSide(color: Color(0xFF81C784)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _sectionTitle(String title, IconData icon) {
@@ -338,6 +411,8 @@ class _ProfilePageState extends State<ProfilePage> {
                             if (result == true && mounted) _loadUser();
                           },
                         ),
+                      _sectionTitle('Acceso web', Icons.public_outlined),
+                      _webVersionCard(),
                       _sectionTitle('Tienda', Icons.storefront_outlined),
                       _actionTile(
                         icon: Icons.inventory_2_outlined,

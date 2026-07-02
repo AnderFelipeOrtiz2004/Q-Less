@@ -131,13 +131,11 @@ function format_product_lines(array $products): string
     }
     $lines = [];
     foreach ($products as $product) {
-        $lines[] = sprintf(
-            '- %s | %s | $%s | stock: %s',
-            $product['nombre'] ?? 'Producto',
-            $product['categoria'] ?? 'General',
-            $product['precio'] ?? '0',
-            $product['stock'] ?? '0'
-        );
+        $nombre = trim((string) ($product['nombre'] ?? 'Producto'));
+        $categoria = trim((string) ($product['categoria'] ?? 'General'));
+        $precio = number_format((float) ($product['precio'] ?? 0), 0, '.', '');
+        $stock = (int) ($product['stock'] ?? 0);
+        $lines[] = sprintf('- %s · %s · $%s · Stock: %d', $nombre, $categoria, $precio, $stock);
     }
     return implode("\n", $lines);
 }
