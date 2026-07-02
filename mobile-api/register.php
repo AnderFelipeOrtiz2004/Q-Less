@@ -3,7 +3,9 @@ require_once __DIR__ . '/cors.php';
 header('Content-Type: application/json; charset=UTF-8');
 
 require_once 'config.php';
+require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/mail_helpers.php';
+require_once __DIR__ . '/email_templates.php';
 require_once __DIR__ . '/auth_actions.php';
 
 function send_json($statusCode, $payload) {
@@ -28,6 +30,7 @@ function ensure_email_verification_table(mysqli $conn): void
     );
 }
 
+ensure_users_table($conn);
 ensure_email_verification_table($conn);
 
 $json_input = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -168,24 +171,40 @@ $ins->close();
 $mail = qless_verify_email_content($nombre, $code, $email);
 
 if (!smtp_is_configured()) {
-    $conn->query('DELETE FROM users WHERE id = ' . (int) $newId);
-    $conn->query("DELETE FROM email_verification_codes WHERE email = '" . $conn->real_escape_string($email) . "'");
-    send_json(500, [
-        'status' => 'error',
-        'message' => 'No se pudo enviar el correo. Configura SMTP_USER y SMTP_PASS en Railway.',
-        'code' => 'smtp_not_configured',
+    send_json(200, [
+        'status' => 'success',
+        'message' => 'Cuenta creada. SMTP no configurado en Railway; configura SMTP_USER y SMTP_PASS.',
+        'data' => [
+            'id' => $newId,
+            'nombre' => $nombre,
+            'correo' => $email,
+            'role' => $role,
+            'needs_verification' => true,
+            'email_sent' => false,
+            'terms_accepted' => true,
+            'privacy_version' => $privacyVersion,
+            'base_api_url' => $baseUrl,
+        ],
     ]);
 }
 
 $sent = send_app_email($email, 'Verifica tu correo Gmail - Q-LESS', $mail['plain'], $mail['html']);
 
 if (!$sent) {
-    $conn->query('DELETE FROM users WHERE id = ' . (int) $newId);
-    $conn->query("DELETE FROM email_verification_codes WHERE email = '" . $conn->real_escape_string($email) . "'");
-    send_json(500, [
-        'status' => 'error',
-        'message' => 'No se pudo enviar el código a Gmail. Revisa SMTP_USER, SMTP_PASS y SMTP_FROM en Railway.',
-        'code' => 'email_send_failed',
+    send_json(200, [
+        'status' => 'success',
+        'message' => 'Cuenta creada. No se pudo enviar el correo ahora; usa «Reenviar código» o revisa SMTP en Railway.',
+        'data' => [
+            'id' => $newId,
+            'nombre' => $nombre,
+            'correo' => $email,
+            'role' => $role,
+            'needs_verification' => true,
+            'email_sent' => false,
+            'terms_accepted' => true,
+            'privacy_version' => $privacyVersion,
+            'base_api_url' => $baseUrl,
+        ],
     ]);
 }
 

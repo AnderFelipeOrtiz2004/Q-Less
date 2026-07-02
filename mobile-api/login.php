@@ -29,7 +29,10 @@ try {
         send_json(400, ['status' => 'error', 'message' => 'El correo y la contraseña son requeridos']);
     }
 
-    if (!is_gmail_email($email)) {
+    $adminEmail = strtolower(trim(load_local_env('ADMIN_EMAIL') ?: 'admin@qless.app'));
+    $isAdminLogin = $email === $adminEmail || $email === 'admin@qless.app';
+
+    if (!is_gmail_email($email) && !$isAdminLogin) {
         send_json(400, ['status' => 'error', 'message' => 'Solo puedes iniciar sesión con un correo Gmail.']);
     }
 

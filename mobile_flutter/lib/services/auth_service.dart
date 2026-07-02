@@ -85,8 +85,12 @@ class AuthService {
       return {
         'success':
             response.statusCode == 200 && jsonResponse['status'] == 'success',
-        'message': jsonResponse['message'] ?? 'Error en el servidor',
+        'message': jsonResponse['message'] ??
+            (response.statusCode >= 500
+                ? 'Error del servidor (${response.statusCode}). El API necesita actualizarse en Railway.'
+                : 'Error en el servidor'),
         'data': jsonResponse['data'],
+        'code': jsonResponse['code'],
       };
     } catch (_) {
       return {

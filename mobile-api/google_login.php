@@ -29,7 +29,19 @@ try {
     }
 
     $verifyUrl = 'https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($idToken);
-    $verifyResponse = @file_get_contents($verifyUrl);
+    $verifyResponse = false;
+    if (function_exists('curl_init')) {
+        $ch = curl_init($verifyUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 20,
+        ]);
+        $verifyResponse = curl_exec($ch);
+        curl_close($ch);
+    }
+    if ($verifyResponse === false) {
+        $verifyResponse = @file_get_contents($verifyUrl);
+    }
     if ($verifyResponse === false) {
         send_json(502, ['status' => 'error', 'message' => 'No se pudo validar el token de Google']);
     }
