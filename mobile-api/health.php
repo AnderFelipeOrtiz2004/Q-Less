@@ -21,6 +21,9 @@ $smtpUser = trim(qless_env('SMTP_USER'));
 $smtpPass = str_replace(' ', '', trim(qless_env('SMTP_PASS')));
 $smtpFrom = trim(qless_env('SMTP_FROM')) ?: $smtpUser;
 $checks['smtp_configured'] = $smtpUser !== '' && $smtpPass !== '' && $smtpFrom !== '';
+$checks['brevo_api_configured'] = trim(qless_env('BREVO_API_KEY')) !== ''
+    && in_array(strtolower(trim(qless_env('SMTP_PROVIDER'))), ['brevo', 'sendinblue'], true);
+$checks['google_configured'] = trim(qless_env('GOOGLE_CLIENT_ID')) !== '';
 
 echo json_encode([
     'status' => $checks['mysql'] ? 'success' : 'error',

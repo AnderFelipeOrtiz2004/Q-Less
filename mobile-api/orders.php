@@ -4,6 +4,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 require_once 'config.php';
 require_once __DIR__ . '/mail_helpers.php';
+require_once __DIR__ . '/email_templates.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -51,19 +52,14 @@ function send_purchase_approved_email(array $buyer, array $order, string $adminN
     $total = (int) ($order['total_price'] ?? 0);
     $purchaseCode = (string) $orderId;
 
-    $body = "Hola {$buyerName},\n\n"
-        . "El administrador {$adminName} aceptó tu compra en Q-LESS.\n\n"
-        . "Producto: {$productName}\n"
-        . "Cantidad: {$quantity}\n"
-        . "Total: \${$total}\n\n"
-        . "Tu código de compra es: {$purchaseCode}\n\n"
-        . "Guarda este código. Lo necesitarás para recoger tu pedido.\n\n"
-        . "— Equipo Q-LESS";
+    $productSummary = "{$productName} × {$quantity} — Total: \${$total}";
+    $mail = qless_purchase_code_email($buyerName, $purchaseCode, $productSummary);
 
-    return send_reset_email(
+    return send_app_email(
         $email,
         'Compra aceptada - Código ' . $purchaseCode,
-        $body
+        $mail['plain'],
+        $mail['html']
     );
 }
 

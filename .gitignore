@@ -19,3 +19,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .npm
+
+# APK sueltas en raíz y credenciales locales
+Q-LESS*.apk
+docs/RAILWAY_VARIABLES_BREVO.txt
+_mobile-api-backup/

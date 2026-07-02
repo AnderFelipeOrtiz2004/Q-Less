@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
@@ -40,15 +41,28 @@ void main() async {
 class QLessApp extends StatelessWidget {
   const QLessApp({super.key});
 
+  static Widget _resolveInitialScreen() {
+    if (kIsWeb) {
+      final params = Uri.base.queryParameters;
+      final email = (params['reset_email'] ?? params['email'] ?? '').trim();
+      final code = (params['reset_code'] ?? params['code'] ?? '').trim();
+      if (email.isNotEmpty) {
+        return ForgotPasswordPage(initialEmail: email, initialCode: code);
+      }
+    }
+    return const LoginScreen();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Q-LESS',
       theme: buildAppTheme(),
-      home: const LoginScreen(),
+      home: _resolveInitialScreen(),
       routes: {
         '/login': (context) => const LoginScreen(),
+        '/forgot-password': (context) => const ForgotPasswordPage(),
       },
     );
   }
@@ -217,6 +231,18 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loginWithGoogle() async {
     SoundService.playClick();
 
+    final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID']?.trim() ?? '';
+    if (webClientId.isEmpty) {
+      setState(() {
+        _errorMessage =
+            'Falta GOOGLE_WEB_CLIENT_ID en la app. Créalo en Google Cloud Console y vuelve a generar el APK.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_errorMessage), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     final termsOk = await showLegalTermsDialog(context);
     if (!termsOk || !mounted) return;
 
@@ -226,10 +252,9 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID']?.trim() ?? '';
       final googleSignIn = GoogleSignIn(
         scopes: const ['email', 'profile'],
-        serverClientId: webClientId.isNotEmpty ? webClientId : null,
+        serverClientId: webClientId,
       );
 
       final account = await googleSignIn.signIn();

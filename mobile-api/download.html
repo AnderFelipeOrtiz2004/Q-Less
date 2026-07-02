@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Descargar Q-LESS</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(160deg, #0f172a 0%, #1e3a5f 45%, #0ea5e9 120%);
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 440px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 20px;
+      padding: 32px 28px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      text-align: center;
+    }
+    .logo {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 16px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #38bdf8, #6366f1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 800;
+    }
+    h1 { margin: 0 0 8px; font-size: 1.6rem; }
+    p { margin: 0 0 20px; color: #cbd5e1; line-height: 1.5; font-size: 0.95rem; }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 16px 20px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      margin-bottom: 12px;
+    }
+    .btn:hover { filter: brightness(1.06); }
+    .steps {
+      text-align: left;
+      margin-top: 20px;
+      padding: 16px;
+      background: rgba(30, 41, 59, 0.8);
+      border-radius: 12px;
+      font-size: 0.85rem;
+      color: #94a3b8;
+    }
+    .steps ol { margin: 8px 0 0; padding-left: 20px; }
+    .steps li { margin-bottom: 6px; }
+    .meta { margin-top: 16px; font-size: 0.8rem; color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Q</div>
+    <h1>Q-LESS</h1>
+    <p>Descarga e instala la aplicación móvil. Requiere Android 6.0 o superior.</p>
+    <a class="btn" href="/releases/Q-LESS.apk" download="Q-LESS.apk">Descargar APK (Android)</a>
+    <div class="steps">
+      <strong>Instalación en el celular</strong>
+      <ol>
+        <li>Pulsa el botón verde y espera la descarga.</li>
+        <li>Abre el archivo <em>Q-LESS.apk</em> desde Notificaciones o Descargas.</li>
+        <li>Si Android lo pide, activa <em>Instalar apps desconocidas</em> para Chrome o Archivos.</li>
+        <li>Abre Q-LESS y usa <strong>Iniciar sesión con Google</strong> o registro Gmail.</li>
+      </ol>
+    </div>
+    <p class="meta">API: mobile-api-production-21d2.up.railway.app</p>
+  </div>
+</body>
+</html>

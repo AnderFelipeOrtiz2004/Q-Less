@@ -123,6 +123,7 @@ if ($envBaseUrl !== '') {
 
 if (!defined('QLESS_LIGHTWEIGHT') || !QLESS_LIGHTWEIGHT) {
     require_once __DIR__ . '/helpers.php';
+    require_once __DIR__ . '/email_templates.php';
 
     ensure_users_table($conn);
     ensure_productos_table($conn);

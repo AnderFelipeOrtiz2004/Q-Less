@@ -6,18 +6,18 @@ function ensure_default_admin(mysqli $conn): void
 
     $email = strtolower(trim(load_local_env('ADMIN_EMAIL')));
     if ($email === '') {
-        $email = 'felipeortiz37@gmail.com';
+        $email = 'admin@qless.app';
     }
 
     $name = load_local_env('ADMIN_NAME');
     if ($name === '') {
-        $name = 'Felipe Ortiz';
+        $name = 'Administrador Q-LESS';
     }
 
     $role = 'admin';
     $plainPassword = load_local_env('ADMIN_PASSWORD');
     if ($plainPassword === '') {
-        $plainPassword = 'Felipe117';
+        $plainPassword = 'QlessAdmin2026!';
     }
     $password = password_hash($plainPassword, PASSWORD_BCRYPT);
 
@@ -107,13 +107,13 @@ function ensure_demo_products(mysqli $conn): void
 function admin_env_email(): string
 {
     $email = strtolower(trim(load_local_env('ADMIN_EMAIL')));
-    return $email !== '' ? $email : 'felipeortiz37@gmail.com';
+    return $email !== '' ? $email : 'admin@qless.app';
 }
 
 function admin_env_password(): string
 {
     $pass = load_local_env('ADMIN_PASSWORD');
-    return $pass !== '' ? $pass : 'Felipe117';
+    return $pass !== '' ? $pass : 'QlessAdmin2026!';
 }
 
 function admin_credentials_match(string $email, string $password): bool
@@ -178,7 +178,12 @@ function ensure_users_commerce_columns(mysqli $conn): void
     $flagFile = __DIR__ . '/storage/.users_commerce_v1';
     if (!is_file($flagFile)) {
         @$conn->query('UPDATE users SET email_verified = 1');
-        @$conn->query("UPDATE users SET purchases_enabled = 1 WHERE LOWER(role) = 'admin' OR LOWER(COALESCE(rol, '')) = 'admin'");
+        $adminWhere = "LOWER(role) = 'admin'";
+        $rolCheck = $conn->query("SHOW COLUMNS FROM users LIKE 'rol'");
+        if ($rolCheck && $rolCheck->num_rows > 0) {
+            $adminWhere = "(LOWER(role) = 'admin' OR LOWER(rol) = 'admin')";
+        }
+        @$conn->query("UPDATE users SET purchases_enabled = 1 WHERE {$adminWhere}");
         @file_put_contents($flagFile, date('c'));
     }
 }
@@ -281,6 +286,11 @@ function repair_null_timestamps(mysqli $conn, ?string $table = null): void
     $tables = $table !== null ? [$table] : ['users', 'productos'];
 
     foreach ($tables as $target) {
+        $exists = $conn->query("SHOW TABLES LIKE '{$target}'");
+        if (!$exists || $exists->num_rows === 0) {
+            continue;
+        }
+
         $res = $conn->query("SHOW COLUMNS FROM `$target` LIKE 'created_at'");
         if (!$res || $res->num_rows === 0) {
             continue;

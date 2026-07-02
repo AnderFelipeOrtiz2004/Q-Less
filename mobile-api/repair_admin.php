@@ -3,6 +3,8 @@
  * Sincroniza el admin con ADMIN_EMAIL y ADMIN_PASSWORD de Railway.
  * Visitar una vez tras deploy: /repair_admin.php
  */
+define('QLESS_LIGHTWEIGHT', true);
+
 require_once __DIR__ . '/cors.php';
 header('Content-Type: application/json; charset=utf-8');
 
@@ -15,10 +17,12 @@ function repair_send_json(int $code, array $payload): void
 
 try {
     require_once __DIR__ . '/config.php';
+    require_once __DIR__ . '/helpers.php';
 
-    $adminEmail = admin_env_email();
+    ensure_users_table($conn);
     ensure_default_admin($conn);
 
+    $adminEmail = admin_env_email();
     $roleExpr = users_role_sql_expr();
     $stmt = $conn->prepare(
         "SELECT id, email, ($roleExpr) AS role,
@@ -47,6 +51,7 @@ try {
         'admin_email' => $adminEmail,
         'smtp_configured' => trim(qless_env('SMTP_USER')) !== ''
             && str_replace(' ', '', trim(qless_env('SMTP_PASS'))) !== '',
+        'google_configured' => trim(qless_env('GOOGLE_CLIENT_ID')) !== '',
         'admin' => $admin ? [
             'id' => (int) $admin['id'],
             'email' => $admin['email'],

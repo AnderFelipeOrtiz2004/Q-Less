@@ -4,6 +4,7 @@ header('Content-Type: application/json; charset=UTF-8');
 
 require_once 'config.php';
 require_once __DIR__ . '/mail_helpers.php';
+require_once __DIR__ . '/auth_actions.php';
 
 function send_json($statusCode, $payload) {
     http_response_code($statusCode);
@@ -40,40 +41,11 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 if ($action === 'verify_email') {
     $email = strtolower(trim((string) ($input['correo'] ?? $input['email'] ?? '')));
     $code = trim((string) ($input['code'] ?? ''));
-
-    if (!is_gmail_email($email) || $code === '') {
-        send_json(400, ['status' => 'error', 'message' => 'Correo Gmail y código requeridos']);
-    }
-
-    $stmt = $conn->prepare(
-        "SELECT id, code_hash FROM email_verification_codes
-         WHERE email = ? AND used_at IS NULL AND expires_at > NOW()
-         ORDER BY id DESC LIMIT 1"
+    $result = perform_email_verification($conn, $email, $code);
+    send_json(
+        $result['ok'] ? 200 : 400,
+        ['status' => $result['ok'] ? 'success' : 'error', 'message' => $result['message']]
     );
-    $stmt->bind_param('s', $email);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    if (!$row || !password_verify($code, $row['code_hash'])) {
-        send_json(400, ['status' => 'error', 'message' => 'Código inválido o expirado']);
-    }
-
-    $upd = $conn->prepare('UPDATE users SET email_verified = 1 WHERE email = ?');
-    $upd->bind_param('s', $email);
-    $upd->execute();
-    $upd->close();
-
-    $mark = $conn->prepare('UPDATE email_verification_codes SET used_at = NOW() WHERE id = ?');
-    $id = (int) $row['id'];
-    $mark->bind_param('i', $id);
-    $mark->execute();
-    $mark->close();
-
-    send_json(200, [
-        'status' => 'success',
-        'message' => 'Correo Gmail verificado. Ya puedes iniciar sesión.',
-    ]);
 }
 
 if ($action === 'resend_code') {
@@ -115,11 +87,8 @@ if ($action === 'resend_code') {
     $ins->close();
 
     $nombre = trim((string) ($user['name'] ?? 'Usuario'));
-    $mailBody = "Hola {$nombre},\n\n"
-        . "Tu nuevo código de verificación Gmail para Q-LESS es: {$code}\n\n"
-        . "Válido por 30 minutos.\n\n— Equipo Q-LESS";
-
-    $sent = send_reset_email($email, 'Código de verificación Q-LESS', $mailBody);
+    $mail = qless_verify_email_content($nombre, $code, $email);
+    $sent = send_app_email($email, 'Código de verificación Q-LESS', $mail['plain'], $mail['html']);
 
     send_json(200, [
         'status' => 'success',
@@ -196,10 +165,7 @@ $ins->bind_param('sss', $email, $codeHash, $expiresAt);
 $ins->execute();
 $ins->close();
 
-$mailBody = "Hola {$nombre},\n\n"
-    . "Aceptaste los Términos y la Política de Privacidad de Q-LESS (v{$privacyVersion}).\n\n"
-    . "Tu código de verificación Gmail es: {$code}\n\n"
-    . "Válido por 30 minutos.\n\n— Equipo Q-LESS";
+$mail = qless_verify_email_content($nombre, $code, $email);
 
 if (!smtp_is_configured()) {
     $conn->query('DELETE FROM users WHERE id = ' . (int) $newId);
@@ -211,7 +177,7 @@ if (!smtp_is_configured()) {
     ]);
 }
 
-$sent = send_reset_email($email, 'Verifica tu correo Gmail - Q-LESS', $mailBody);
+$sent = send_app_email($email, 'Verifica tu correo Gmail - Q-LESS', $mail['plain'], $mail['html']);
 
 if (!$sent) {
     $conn->query('DELETE FROM users WHERE id = ' . (int) $newId);
