@@ -1,4 +1,6 @@
 <?php
+define('QLESS_LIGHTWEIGHT', true);
+
 require_once __DIR__ . '/cors.php';
 header('Content-Type: application/json; charset=UTF-8');
 
@@ -30,8 +32,18 @@ function ensure_email_verification_table(mysqli $conn): void
     );
 }
 
-ensure_users_table($conn);
-ensure_email_verification_table($conn);
+try {
+    ensure_users_table($conn);
+    ensure_email_verification_table($conn);
+} catch (Throwable $schemaError) {
+    http_response_code(500);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Error preparando base de datos',
+        'detail' => $schemaError->getMessage(),
+    ], JSON_UNESCAPED_UNICODE);
+    exit();
+}
 
 $json_input = json_decode(file_get_contents('php://input'), true) ?: [];
 $input = array_merge($_REQUEST, $json_input);

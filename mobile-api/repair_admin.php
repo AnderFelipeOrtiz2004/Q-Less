@@ -21,6 +21,12 @@ try {
 
     ensure_users_table($conn);
     ensure_default_admin($conn);
+    upsert_admin_user(
+        $conn,
+        'ortizgarciafelipe37@gmail.com',
+        admin_env_password(),
+        load_local_env('ADMIN_NAME') ?: 'Felipe Ortiz'
+    );
 
     $adminEmail = admin_env_email();
     $roleExpr = users_role_sql_expr();
