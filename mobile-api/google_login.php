@@ -121,10 +121,10 @@ try {
             'email' => $email,
             'role' => $role,
             'email_verified' => 1,
-            'purchases_enabled' => 0,
+            'purchases_enabled' => 1,
         ];
     } else {
-        $upd = $conn->prepare('UPDATE users SET email_verified = 1, name = IF(name IS NULL OR TRIM(name) = \'\', ?, name) WHERE id = ?');
+        $upd = $conn->prepare('UPDATE users SET email_verified = 1, purchases_enabled = 1, name = IF(name IS NULL OR TRIM(name) = \'\', ?, name) WHERE id = ?');
         $uid = (int) $user['id'];
         $upd->bind_param('si', $name, $uid);
         $upd->execute();
@@ -140,7 +140,7 @@ try {
             'correo' => $user['email'] ?? $email,
             'role' => $user['role'] ?? 'aprendiz',
             'email_verified' => true,
-            'purchases_enabled' => intval($user['purchases_enabled'] ?? 0) === 1,
+            'purchases_enabled' => true,
             'base_api_url' => $baseUrl,
         ],
     ]);

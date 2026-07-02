@@ -88,7 +88,7 @@ function perform_email_verification(mysqli $conn, string $email, string $code): 
         return ['ok' => false, 'message' => 'Código inválido o expirado'];
     }
 
-    $upd = $conn->prepare('UPDATE users SET email_verified = 1 WHERE LOWER(email) = LOWER(?)');
+    $upd = $conn->prepare('UPDATE users SET email_verified = 1, purchases_enabled = 1 WHERE LOWER(email) = LOWER(?)');
     $upd->bind_param('s', $email);
     $upd->execute();
     $upd->close();
