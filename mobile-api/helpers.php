@@ -307,16 +307,14 @@ function repair_null_timestamps(mysqli $conn, ?string $table = null): void
         @$conn->query(
             "UPDATE `$target` SET created_at = NOW()
              WHERE created_at IS NULL
-                OR created_at = ''
                 OR YEAR(created_at) < 2000"
         );
 
         $resUpd = $conn->query("SHOW COLUMNS FROM `$target` LIKE 'updated_at'");
         if ($resUpd && $resUpd->num_rows > 0) {
             @$conn->query(
-                "UPDATE `$target` SET updated_at = COALESCE(NULLIF(updated_at, ''), created_at, NOW())
+                "UPDATE `$target` SET updated_at = NOW()
                  WHERE updated_at IS NULL
-                    OR updated_at = ''
                     OR YEAR(updated_at) < 2000"
             );
         }
