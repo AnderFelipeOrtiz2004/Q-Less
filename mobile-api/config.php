@@ -125,11 +125,15 @@ if (!defined('QLESS_LIGHTWEIGHT') || !QLESS_LIGHTWEIGHT) {
     require_once __DIR__ . '/helpers.php';
     require_once __DIR__ . '/email_templates.php';
 
-    ensure_users_table($conn);
-    ensure_productos_table($conn);
-    ensure_ordenes_table($conn);
-    ensure_default_admin($conn);
-    ensure_demo_products($conn);
+    try {
+        ensure_users_table($conn);
+        ensure_productos_table($conn);
+        ensure_ordenes_table($conn);
+        ensure_default_admin($conn);
+        ensure_demo_products($conn);
+    } catch (Throwable $bootstrapError) {
+        error_log('QLESS bootstrap: ' . $bootstrapError->getMessage());
+    }
 
     foreach (['storage', 'storage/products', 'storage/productos', 'storage/avatars'] as $dir) {
         $fullDir = __DIR__ . '/' . $dir;

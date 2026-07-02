@@ -1,8 +1,11 @@
 <?php
+define('QLESS_LIGHTWEIGHT', true);
+
 require_once __DIR__ . '/cors.php';
 header('Content-Type: application/json; charset=UTF-8');
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/helpers.php';
 
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -15,6 +18,9 @@ function send_json(int $statusCode, array $payload): void
 }
 
 try {
+    ensure_users_table($conn);
+    ensure_default_admin($conn);
+
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
         send_json(405, ['status' => 'error', 'message' => 'Método no permitido']);
     }
@@ -29,8 +35,10 @@ try {
         send_json(400, ['status' => 'error', 'message' => 'El correo y la contraseña son requeridos']);
     }
 
-    $adminEmail = strtolower(trim(load_local_env('ADMIN_EMAIL') ?: 'admin@qless.app'));
-    $isAdminLogin = $email === $adminEmail || $email === 'admin@qless.app';
+    $adminEmail = strtolower(trim(load_local_env('ADMIN_EMAIL') ?: 'ortizgarciafelipe37@gmail.com'));
+    $isAdminLogin = $email === $adminEmail
+        || $email === 'admin@qless.app'
+        || $email === 'ortizgarciafelipe37@gmail.com';
 
     if (!is_gmail_email($email) && !$isAdminLogin) {
         send_json(400, ['status' => 'error', 'message' => 'Solo puedes iniciar sesión con un correo Gmail.']);
@@ -74,7 +82,12 @@ try {
 
     if (!$user || !$valid) {
         if (admin_credentials_match($email, $password)) {
-            ensure_default_admin($conn);
+            upsert_admin_user(
+                $conn,
+                $email,
+                admin_env_password(),
+                load_local_env('ADMIN_NAME') ?: 'Felipe Ortiz'
+            );
 
             $retry = $conn->prepare(
                 "SELECT id, name, email, password, ($roleExpr) AS role,
@@ -104,8 +117,8 @@ try {
         send_json(401, ['status' => 'error', 'message' => 'Contraseña incorrecta']);
     }
 
-    $adminEmail = strtolower(trim(load_local_env('ADMIN_EMAIL') ?: ''));
-    $isDesignatedAdmin = $adminEmail !== '' && strtolower((string) $user['email']) === $adminEmail;
+    $isDesignatedAdmin = is_designated_admin_email((string) $user['email'])
+        || strtolower((string) ($user['role'] ?? '')) === 'admin';
 
     if (intval($user['email_verified']) !== 1) {
         if ($isDesignatedAdmin || strtolower((string) ($user['role'] ?? '')) === 'admin') {
