@@ -21,6 +21,7 @@ $smtpUser = trim(qless_env('SMTP_USER'));
 $smtpPass = str_replace(' ', '', trim(qless_env('SMTP_PASS')));
 $smtpFrom = trim(qless_env('SMTP_FROM')) ?: $smtpUser;
 $checks['smtp_configured'] = $smtpUser !== '' && $smtpPass !== '' && $smtpFrom !== '';
+require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/mail_helpers.php';
 $checks['brevo_api_configured'] = brevo_api_key() !== '';
 $checks['smtp_provider'] = strtolower(trim(qless_env('SMTP_PROVIDER')));

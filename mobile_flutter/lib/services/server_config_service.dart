@@ -22,10 +22,8 @@ class ServerConfigService {
 
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    final envUrl = normalizeApiBaseUrl(dotenv.env['API_BASE_URL']);
-
     if (isOnlineApiMode) {
-      _cachedUrl = envUrl;
+      _cachedUrl = baseUrlFromEnv();
       await prefs.setString(_prefsKey, _cachedUrl!);
       return;
     }
