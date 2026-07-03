@@ -50,11 +50,18 @@ function send_purchase_approved_email(array $buyer, array $order, string $adminN
     $orderId = (int) ($order['id'] ?? 0);
     $productName = (string) ($order['product_name'] ?? 'Producto');
     $quantity = (int) ($order['quantity'] ?? 1);
+    $unitPrice = (int) ($order['price'] ?? 0);
     $total = (int) ($order['total_price'] ?? 0);
     $purchaseCode = (string) $orderId;
 
-    $productSummary = "{$productName} × {$quantity} — Total: \${$total}";
-    $mail = qless_purchase_code_email($buyerName, $purchaseCode, $productSummary);
+    $mail = qless_purchase_code_email(
+        $buyerName,
+        $purchaseCode,
+        $productName,
+        $quantity,
+        $unitPrice,
+        $total
+    );
 
     return send_app_email(
         $email,

@@ -77,17 +77,30 @@ class ServerConfigService {
   }
 
   static Future<bool> _healthOk(String base) async {
+    final timeout = isOnlineApiMode
+        ? const Duration(seconds: 30)
+        : const Duration(seconds: 8);
+
     try {
-      final timeout = isOnlineApiMode
-          ? const Duration(seconds: 90)
-          : const Duration(seconds: 8);
-      final response = await http
+      final healthResponse = await http
           .get(Uri.parse(apiUrl(base, 'health.php')))
           .timeout(timeout);
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        return false;
+      if (healthResponse.statusCode >= 200 &&
+          healthResponse.statusCode < 300 &&
+          healthResponse.body.contains('"checks"')) {
+        return true;
       }
-      return response.body.contains('"checks"');
+    } catch (_) {}
+
+    if (!isOnlineApiMode) {
+      return false;
+    }
+
+    try {
+      final loginResponse = await http
+          .get(Uri.parse(apiUrl(base, 'login.php')))
+          .timeout(timeout);
+      return loginResponse.body.contains('"status"');
     } catch (_) {
       return false;
     }
