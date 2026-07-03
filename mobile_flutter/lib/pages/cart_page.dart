@@ -219,18 +219,6 @@ class _CartPageState extends State<CartPage> {
       return;
     }
 
-    if (!widget.purchasesEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Tus compras aún no están habilitadas. Un administrador debe activarlas.',
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
     if (_items.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -456,30 +444,7 @@ class _CartPageState extends State<CartPage> {
                       ],
                     ),
                   ),
-                if (!widget.purchasesEnabled)
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF3E0),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFFFE082)),
-                    ),
-                    child: const Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.info_outline, color: Color(0xFFE8A838), size: 20),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Tu compra quedará pendiente hasta que un administrador habilite tus compras. Luego podrás enviar la solicitud desde el carrito.',
-                            style: TextStyle(fontSize: 12, color: Colors.black87),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+
                 Container(
                   width: double.infinity,
                   margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -603,9 +568,7 @@ class _CartPageState extends State<CartPage> {
                         width: double.infinity,
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: (!_isProcessing &&
-                                  widget.purchasesEnabled &&
-                                  widget.emailVerified)
+                          onPressed: (!_isProcessing && widget.emailVerified)
                               ? _processPurchase
                               : null,
                           style: ElevatedButton.styleFrom(

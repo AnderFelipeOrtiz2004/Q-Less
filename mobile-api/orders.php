@@ -3,6 +3,7 @@ require_once __DIR__ . '/cors.php';
 header('Content-Type: application/json; charset=utf-8');
 
 require_once 'config.php';
+require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/mail_helpers.php';
 require_once __DIR__ . '/email_templates.php';
 
@@ -147,6 +148,10 @@ if ($method === 'POST' && $action === 'create') {
         $total = intval($prod['precio']) * $quantity;
         $status = 'pendiente';
         $resId = $reservationId > 0 ? $reservationId : 0;
+        $orderImage = compact_order_image_path($prod['image_path'] ?? '');
+        if ($orderImage === '') {
+            $orderImage = compact_order_image_path($input['product_image_url'] ?? '');
+        }
 
         $ins = $conn->prepare(
             'INSERT INTO ordenes (user_id, product_id, reservation_id, product_name, quantity, price, total_price, status, product_image_url)
@@ -162,10 +167,10 @@ if ($method === 'POST' && $action === 'create') {
             $prod['precio'],
             $total,
             $status,
-            $prod['image_path']
+            $orderImage
         );
         if (!$ins->execute()) {
-            throw new Exception('No se pudo registrar la solicitud de compra');
+            throw new Exception('No se pudo registrar la solicitud: ' . $conn->error);
         }
         $orderId = $ins->insert_id;
         $ins->close();
@@ -368,11 +373,6 @@ if ($method === 'GET' && $action === 'get_pending_orders') {
          $legacyJoin
          WHERE o.status = 'pendiente'
            AND u.id IS NOT NULL
-           AND COALESCE(u.email_verified, 0) = 1
-           AND (
-             LOWER(u.email) LIKE '%@gmail.com'
-             OR LOWER(u.email) LIKE '%@googlemail.com'
-           )
          ORDER BY o.created_at ASC"
     );
     if (!$res) {

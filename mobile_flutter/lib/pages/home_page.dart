@@ -400,18 +400,6 @@ class _HomePageState extends State<HomePage> {
       );
       return;
     }
-    if (!_purchasesEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Tus compras aún no están habilitadas. Un administrador debe activarlas.',
-          ),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
     if (product.availableStock <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

@@ -3,6 +3,7 @@ require_once __DIR__ . '/cors.php';
 header('Content-Type: application/json; charset=utf-8');
 
 require_once 'config.php';
+require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/mail_helpers.php';
 require_once __DIR__ . '/auth_actions.php';
 
@@ -105,7 +106,7 @@ function send_password_reset_code(mysqli $conn, string $email): array
         return [
             'ok' => false,
             'status' => 503,
-            'message' => 'No se pudo enviar el correo. Revisa SMTP_USER y SMTP_PASS en Railway.',
+            'message' => 'No se pudo enviar el correo. Verifica SMTP en Railway y agrega BREVO_API_KEY (xkeysib-...) si usas Brevo.',
         ];
     }
 

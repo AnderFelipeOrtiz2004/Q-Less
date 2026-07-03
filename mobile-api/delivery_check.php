@@ -49,8 +49,9 @@ try {
         ],
         'test_accounts' => [
             'admin' => [
-                'email' => $adminEmail,
-                'password' => '(ADMIN_PASSWORD en Railway)',
+                'email' => 'ortizgarciafelipe37@gmail.com',
+                'alt_email' => 'admin@qless.app',
+                'password' => '(ADMIN_PASSWORD en Railway, default Felipe117)',
                 'role' => 'admin — aprueba compras, gestiona productos',
             ],
             'user' => [

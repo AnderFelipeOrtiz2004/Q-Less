@@ -3,25 +3,25 @@
 function ensure_default_admin(mysqli $conn): void
 {
     ensure_users_table($conn);
+    upsert_admin_user(
+        $conn,
+        admin_env_email(),
+        admin_env_password(),
+        load_local_env('ADMIN_NAME') ?: 'Felipe Ortiz'
+    );
+}
 
-    $email = strtolower(trim(load_local_env('ADMIN_EMAIL')));
+function upsert_admin_user(mysqli $conn, string $email, string $plainPassword, string $name = 'Administrador'): void
+{
+    $email = strtolower(trim($email));
     if ($email === '') {
-        $email = 'admin@qless.app';
-    }
-
-    $name = load_local_env('ADMIN_NAME');
-    if ($name === '') {
-        $name = 'Administrador Q-LESS';
+        return;
     }
 
     $role = 'admin';
-    $plainPassword = load_local_env('ADMIN_PASSWORD');
-    if ($plainPassword === '') {
-        $plainPassword = 'QlessAdmin2026!';
-    }
-    $password = password_hash($plainPassword, PASSWORD_BCRYPT);
+    $passwordHash = password_hash($plainPassword, PASSWORD_BCRYPT);
 
-    $stmt = $conn->prepare('SELECT id, email, password FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1');
+    $stmt = $conn->prepare('SELECT id, password FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1');
     $stmt->bind_param('s', $email);
     $stmt->execute();
     $existing = $stmt->get_result()->fetch_assoc();
@@ -29,30 +29,16 @@ function ensure_default_admin(mysqli $conn): void
 
     if ($existing) {
         $userId = (int) $existing['id'];
-        $storedHash = (string) ($existing['password'] ?? '');
-        $passwordMatches = $storedHash !== ''
-            && (password_verify($plainPassword, $storedHash) || hash_equals($storedHash, $plainPassword));
-
         $upd = $conn->prepare(
-            'UPDATE users SET name = ?, email = ?, role = ?, email_verified = 1, purchases_enabled = 1 WHERE id = ?'
+            'UPDATE users SET name = ?, email = ?, password = ?, role = ?, email_verified = 1, purchases_enabled = 1 WHERE id = ?'
         );
         if ($upd) {
-            $upd->bind_param('sssi', $name, $email, $role, $userId);
+            $upd->bind_param('ssssi', $name, $email, $passwordHash, $role, $userId);
             $upd->execute();
             $upd->close();
         }
-
         if (table_has_column($conn, 'users', 'rol')) {
             @$conn->query("UPDATE users SET rol = 'admin' WHERE id = " . $userId);
-        }
-
-        if (!$passwordMatches) {
-            $pwdUpd = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
-            if ($pwdUpd) {
-                $pwdUpd->bind_param('si', $password, $userId);
-                $pwdUpd->execute();
-                $pwdUpd->close();
-            }
         }
         return;
     }
@@ -62,7 +48,7 @@ function ensure_default_admin(mysqli $conn): void
          VALUES (?, ?, ?, ?, 1, 1, NOW(), NOW())'
     );
     if ($ins) {
-        $ins->bind_param('ssss', $name, $email, $password, $role);
+        $ins->bind_param('ssss', $name, $email, $passwordHash, $role);
         $ins->execute();
         $ins->close();
     }
@@ -107,19 +93,44 @@ function ensure_demo_products(mysqli $conn): void
 function admin_env_email(): string
 {
     $email = strtolower(trim(load_local_env('ADMIN_EMAIL')));
-    return $email !== '' ? $email : 'admin@qless.app';
+    if ($email !== '') {
+        return $email;
+    }
+    return 'ortizgarciafelipe37@gmail.com';
 }
 
 function admin_env_password(): string
 {
     $pass = load_local_env('ADMIN_PASSWORD');
-    return $pass !== '' ? $pass : 'QlessAdmin2026!';
+    return $pass !== '' ? $pass : 'Felipe117';
 }
 
 function admin_credentials_match(string $email, string $password): bool
 {
-    return strtolower(trim($email)) === admin_env_email()
-        && hash_equals(admin_env_password(), $password);
+    $email = strtolower(trim($email));
+    if (!hash_equals(admin_env_password(), $password)) {
+        return false;
+    }
+
+    $allowedEmails = array_unique([
+        admin_env_email(),
+        'admin@qless.app',
+        'ortizgarciafelipe37@gmail.com',
+    ]);
+
+    return in_array($email, $allowedEmails, true);
+}
+
+function is_designated_admin_email(string $email): bool
+{
+    $email = strtolower(trim($email));
+    $allowedEmails = array_unique([
+        admin_env_email(),
+        'admin@qless.app',
+        'ortizgarciafelipe37@gmail.com',
+    ]);
+
+    return in_array($email, $allowedEmails, true);
 }
 
 function is_gmail_email(string $email): bool
@@ -156,7 +167,6 @@ function ensure_users_table(mysqli $conn): void
     migrate_legacy_usuarios_table($conn);
     sync_users_display_names($conn);
     sync_users_display_names_v2($conn);
-    repair_null_timestamps($conn);
 }
 
 function ensure_users_commerce_columns(mysqli $conn): void
@@ -185,6 +195,19 @@ function ensure_users_commerce_columns(mysqli $conn): void
         }
         @$conn->query("UPDATE users SET purchases_enabled = 1 WHERE {$adminWhere}");
         @file_put_contents($flagFile, date('c'));
+    }
+
+    $gmailFlag = __DIR__ . '/storage/.users_gmail_purchases_v1';
+    if (!is_file($gmailFlag)) {
+        @$conn->query(
+            "UPDATE users SET purchases_enabled = 1
+             WHERE COALESCE(email_verified, 0) = 1
+               AND (
+                 LOWER(email) LIKE '%@gmail.com'
+                 OR LOWER(email) LIKE '%@googlemail.com'
+               )"
+        );
+        @file_put_contents($gmailFlag, date('c'));
     }
 }
 
@@ -277,8 +300,6 @@ function ensure_productos_table(mysqli $conn): void
             @$conn->query("ALTER TABLE productos ADD COLUMN $column $definition");
         }
     }
-
-    repair_null_timestamps($conn, 'productos');
 }
 
 function repair_null_timestamps(mysqli $conn, ?string $table = null): void
@@ -299,16 +320,14 @@ function repair_null_timestamps(mysqli $conn, ?string $table = null): void
         @$conn->query(
             "UPDATE `$target` SET created_at = NOW()
              WHERE created_at IS NULL
-                OR created_at = ''
                 OR YEAR(created_at) < 2000"
         );
 
         $resUpd = $conn->query("SHOW COLUMNS FROM `$target` LIKE 'updated_at'");
         if ($resUpd && $resUpd->num_rows > 0) {
             @$conn->query(
-                "UPDATE `$target` SET updated_at = COALESCE(NULLIF(updated_at, ''), created_at, NOW())
+                "UPDATE `$target` SET updated_at = NOW()
                  WHERE updated_at IS NULL
-                    OR updated_at = ''
                     OR YEAR(updated_at) < 2000"
             );
         }
@@ -391,6 +410,11 @@ function ensure_ordenes_table(mysqli $conn): void
         }
     }
 
+    $imgCol = $conn->query("SHOW COLUMNS FROM ordenes LIKE 'product_image_url'");
+    if ($imgCol && $imgCol->num_rows > 0) {
+        @$conn->query('ALTER TABLE ordenes MODIFY product_image_url VARCHAR(512) NULL');
+    }
+
     migrate_ordenes_user_ids_to_users($conn);
 }
 
@@ -440,6 +464,10 @@ function normalize_storage_image_path(?string $path): string
         return '';
     }
 
+    if (preg_match('/[?&]path=([^&]+)/i', $path, $queryMatch)) {
+        $path = urldecode($queryMatch[1]);
+    }
+
     if (preg_match('#(storage/(?:products|productos|avatars)/[^\s?]+)#i', $path, $matches)) {
         return $matches[1];
     }
@@ -449,7 +477,10 @@ function normalize_storage_image_path(?string $path): string
     }
 
     if (preg_match('#^https?://#i', $path)) {
-        return $path;
+        if (preg_match('#/(storage/(?:products|productos|avatars)/[^?#\s]+)#i', $path, $urlMatch)) {
+            return $urlMatch[1];
+        }
+        return '';
     }
 
     if (preg_match('/^blob:/i', $path) || stripos($path, 'data:image/') !== false) {
@@ -457,6 +488,20 @@ function normalize_storage_image_path(?string $path): string
     }
 
     return $path;
+}
+
+function compact_order_image_path(?string $path): string
+{
+    $normalized = normalize_storage_image_path($path);
+    if ($normalized === '') {
+        return '';
+    }
+
+    if (strlen($normalized) > 240) {
+        $normalized = substr($normalized, 0, 240);
+    }
+
+    return $normalized;
 }
 
 function legacy_usuarios_name_expr(string $alias = 'leg'): string
@@ -541,13 +586,6 @@ function user_can_purchase(mysqli $conn, int $userId): array
     }
     if (intval($user['email_verified']) !== 1) {
         return ['ok' => false, 'message' => 'Debes verificar tu correo Gmail antes de comprar.'];
-    }
-    if (intval($user['purchases_enabled']) !== 1) {
-        return [
-            'ok' => false,
-            'message' => 'Tus compras aún no están habilitadas. Un administrador debe activarlas.',
-            'code' => 'purchases_disabled',
-        ];
     }
 
     return ['ok' => true, 'user' => $user];
