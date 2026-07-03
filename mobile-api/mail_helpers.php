@@ -33,13 +33,31 @@ function smtp_crypto_method(): int
 
 function smtp_stream_context()
 {
+    $provider = strtolower(trim(load_local_env('SMTP_PROVIDER')));
+    $strictSsl = !in_array($provider, ['brevo', 'sendinblue'], true);
+
     return stream_context_create([
         'ssl' => [
-            'verify_peer' => true,
-            'verify_peer_name' => true,
-            'allow_self_signed' => false,
+            'verify_peer' => $strictSsl,
+            'verify_peer_name' => $strictSsl,
+            'allow_self_signed' => !$strictSsl,
         ],
     ]);
+}
+
+function brevo_api_key(): string
+{
+    $apiKey = trim(load_local_env('BREVO_API_KEY'));
+    if ($apiKey !== '') {
+        return $apiKey;
+    }
+
+    $smtpPass = str_replace(' ', '', trim(load_local_env('SMTP_PASS')));
+    if (preg_match('/^xkeysib-/i', $smtpPass)) {
+        return $smtpPass;
+    }
+
+    return '';
 }
 
 /**
@@ -212,24 +230,29 @@ function send_reset_email(string $toEmail, string $subject, string $body, ?strin
 
 function send_app_email(string $toEmail, string $subject, string $body, ?string $htmlBody = null): bool
 {
-    if (brevo_api_is_configured() && send_email_via_brevo_api($toEmail, $subject, $body, $htmlBody)) {
+    if (brevo_api_key() !== '' && send_email_via_brevo_api($toEmail, $subject, $body, $htmlBody)) {
         return true;
     }
 
-    return send_reset_email($toEmail, $subject, $body, $htmlBody);
+    if (send_reset_email($toEmail, $subject, $body, $htmlBody)) {
+        return true;
+    }
+
+    if (brevo_api_key() !== '') {
+        return send_email_via_brevo_api($toEmail, $subject, $body, $htmlBody);
+    }
+
+    return false;
 }
 
 function brevo_api_is_configured(): bool
 {
-    $provider = strtolower(trim(load_local_env('SMTP_PROVIDER')));
-    $apiKey = trim(load_local_env('BREVO_API_KEY'));
-
-    return $apiKey !== '' && ($provider === 'brevo' || $provider === 'sendinblue');
+    return brevo_api_key() !== '';
 }
 
 function send_email_via_brevo_api(string $toEmail, string $subject, string $body, ?string $htmlBody = null): bool
 {
-    $apiKey = trim(load_local_env('BREVO_API_KEY'));
+    $apiKey = brevo_api_key();
     if ($apiKey === '') {
         return false;
     }

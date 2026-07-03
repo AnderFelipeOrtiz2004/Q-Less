@@ -46,8 +46,23 @@ class _ChatbotPageState extends State<ChatbotPage> {
     _chatKey = _buildChatKey(widget.userId, widget.userRole);
     _sessionsKey = '${_chatKey}_sessions';
     _currentSession = _createSession();
+    _messageController.addListener(_onDraftChanged);
     _loadUserAvatar();
     _loadSavedData();
+  }
+
+  void _onDraftChanged() {
+    if (!mounted) return;
+    if (_messageController.text.trim().isNotEmpty && _suggestions.isNotEmpty) {
+      setState(() => _suggestions = []);
+    }
+  }
+
+  @override
+  void dispose() {
+    _messageController.removeListener(_onDraftChanged);
+    _messageController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserAvatar() async {
@@ -89,12 +104,6 @@ class _ChatbotPageState extends State<ChatbotPage> {
     final normalizedRole =
         userRole.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_');
     return 'chat_history_${userId}_$normalizedRole';
-  }
-
-  @override
-  void dispose() {
-    _messageController.dispose();
-    super.dispose();
   }
 
   String _deriveSessionTitle(String text) {

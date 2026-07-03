@@ -73,8 +73,20 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _soundsEnabled = value);
   }
 
+  static const String _webAppUrl =
+      'https://frontend-production-1a74.up.railway.app/register';
+
+  String _formatMemberSince(DateTime? createdAt) {
+    if (createdAt == null || createdAt.year < 2000) {
+      return 'Miembro de Q-LESS';
+    }
+    final day = createdAt.day.toString().padLeft(2, '0');
+    final month = createdAt.month.toString().padLeft(2, '0');
+    return 'Miembro desde ${createdAt.year}-$month-$day';
+  }
+
   Future<void> _openWebVersion() async {
-    final uri = Uri.parse('https://frontend-production-1a74.up.railway.app/register');
+    final uri = Uri.parse(_webAppUrl);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -121,6 +133,11 @@ class _ProfilePageState extends State<ProfilePage> {
             const Text(
               'Puedes usar Q-LESS desde tu teléfono o PC en el navegador.',
               style: TextStyle(fontSize: 13, color: Colors.black54, height: 1.35),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _webAppUrl,
+              style: const TextStyle(fontSize: 11, color: Colors.black45),
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -389,7 +406,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         const SizedBox(height: 20),
                       ],
                       Text(
-                        'Miembro desde ${_user?.createdAt != null ? '${_user!.createdAt!.year}-${_user!.createdAt!.month.toString().padLeft(2, '0')}-${_user!.createdAt!.day.toString().padLeft(2, '0')}' : '---'}',
+                        _formatMemberSince(_user?.createdAt),
                         style: const TextStyle(fontSize: 12, color: Colors.black54),
                       ),
                       const SizedBox(height: 24),

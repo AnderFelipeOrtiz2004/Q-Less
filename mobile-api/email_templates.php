@@ -24,6 +24,16 @@ function qless_public_base_url(): string
     return 'http://127.0.0.1/q-less/';
 }
 
+function qless_web_app_url(): string
+{
+    $url = trim(load_local_env('FRONTEND_WEB_URL'));
+    if ($url !== '') {
+        return rtrim($url, '/');
+    }
+
+    return 'https://frontend-production-1a74.up.railway.app';
+}
+
 function qless_flutter_app_url(): string
 {
     $url = trim(load_local_env('FLUTTER_APP_URL'));
@@ -44,6 +54,8 @@ function qless_verify_email_link(string $email, string $code): string
 
 function qless_email_html_wrap(string $title, string $innerHtml): string
 {
+    $webUrl = qless_web_app_url();
+
     return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">'
         . '<meta name="viewport" content="width=device-width,initial-scale=1">'
         . '<title>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</title></head>'
@@ -52,9 +64,13 @@ function qless_email_html_wrap(string $title, string $innerHtml): string
         . '<tr><td align="center">'
         . '<table width="100%" style="max-width:520px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,.08);">'
         . '<tr><td style="background:linear-gradient(135deg,#3EC13B,#2FA832);padding:24px;text-align:center;">'
-        . '<h1 style="margin:0;color:#fff;font-size:24px;letter-spacing:1px;">Q-LESS</h1></td></tr>'
+        . '<div style="width:56px;height:56px;border-radius:28px;background:rgba(255,255,255,.18);margin:0 auto 10px;line-height:56px;color:#fff;font-weight:800;">QL</div>'
+        . '<h1 style="margin:0;color:#fff;font-size:24px;letter-spacing:1px;">Q-LESS</h1>'
+        . '<p style="margin:8px 0 0;color:rgba(255,255,255,.92);font-size:13px;">Tienda escolar · App y web conectadas</p></td></tr>'
         . '<tr><td style="padding:28px 24px;font-size:15px;line-height:1.55;">' . $innerHtml . '</td></tr>'
-        . '<tr><td style="padding:0 24px 24px;font-size:12px;color:#888;text-align:center;">Equipo Q-LESS</td></tr>'
+        . '<tr><td style="padding:0 24px 24px;font-size:12px;color:#888;text-align:center;">'
+        . 'También puedes entrar desde la web: <a href="' . htmlspecialchars($webUrl, ENT_QUOTES, 'UTF-8') . '" style="color:#2FA832;">'
+        . htmlspecialchars($webUrl, ENT_QUOTES, 'UTF-8') . '</a><br>Equipo Q-LESS</td></tr>'
         . '</table></td></tr></table></body></html>';
 }
 
@@ -72,10 +88,12 @@ function qless_password_reset_email(string $userName, string $code, string $emai
 {
     $link = qless_reset_password_link($email, $code);
     $appUrl = qless_flutter_app_url();
+    $webUrl = qless_web_app_url() . '/register';
 
     $plain = "Hola {$userName},\n\n"
         . "Tu código para restablecer la contraseña en Q-LESS es: {$code}\n\n"
         . "También puedes usar este enlace para cambiar tu contraseña:\n{$link}\n\n"
+        . "Versión web: {$webUrl}\n\n"
         . "Válido por 20 minutos. Si no solicitaste este cambio, ignora este mensaje.\n\n— Equipo Q-LESS";
 
     $html = qless_email_html_wrap(
@@ -86,6 +104,7 @@ function qless_password_reset_email(string $userName, string $code, string $emai
         . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . '</p>'
         . '<p>O pulsa el botón para abrir el formulario de cambio de contraseña:</p>'
         . qless_email_button('Cambiar contraseña', $link)
+        . qless_email_button('Abrir versión web', $webUrl)
         . ($appUrl !== '' ? qless_email_button('Abrir aplicación Q-LESS', $appUrl) : '')
         . '<p style="font-size:13px;color:#666;">El código y el enlace vencen en 20 minutos.</p>'
     );
