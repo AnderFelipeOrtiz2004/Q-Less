@@ -25,14 +25,16 @@ $body = "Hola,\n\nCorreo de prueba desde Q-LESS en Railway.\n\n— Q-LESS";
 $html = '<p>Hola,</p><p>Correo de <strong>prueba</strong> desde Q-LESS en Railway.</p>';
 
 $sent = send_app_email($to, $subject, $body, $html);
-$viaApi = brevo_api_is_configured();
+$apiKey = brevo_api_key();
 
 echo json_encode([
     'status' => $sent ? 'success' : 'error',
     'message' => $sent
         ? "Correo enviado a {$to}. Revisa bandeja y Brevo → Transaccional → Tiempo real."
-        : 'No se pudo enviar. Revisa variables SMTP/BREVO_API_KEY y remitente verificado en Brevo.',
+        : 'No se pudo enviar. Confirma BREVO_API_KEY en Railway, haz Deploy y verifica remitente en Brevo.',
     'smtp_configured' => smtp_is_configured(),
-    'brevo_api_configured' => $viaApi,
-    'transport' => $viaApi ? 'brevo_api_or_smtp' : 'smtp',
+    'brevo_api_configured' => $apiKey !== '',
+    'brevo_key_detected' => $apiKey !== '' ? substr($apiKey, 0, 12) . '...' : null,
+    'smtp_provider' => trim(load_local_env('SMTP_PROVIDER')),
+    'transport' => $apiKey !== '' ? 'brevo_api_preferred' : 'smtp_only',
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
