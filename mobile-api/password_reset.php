@@ -105,7 +105,7 @@ function send_password_reset_code(mysqli $conn, string $email): array
         return [
             'ok' => false,
             'status' => 503,
-            'message' => 'No se pudo enviar el correo. Revisa SMTP_USER y SMTP_PASS en Railway.',
+            'message' => 'No se pudo enviar el correo. Verifica SMTP en Railway y agrega BREVO_API_KEY (xkeysib-...) si usas Brevo.',
         ];
     }
 

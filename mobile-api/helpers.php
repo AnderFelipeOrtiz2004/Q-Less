@@ -410,6 +410,11 @@ function ensure_ordenes_table(mysqli $conn): void
         }
     }
 
+    $imgCol = $conn->query("SHOW COLUMNS FROM ordenes LIKE 'product_image_url'");
+    if ($imgCol && $imgCol->num_rows > 0) {
+        @$conn->query('ALTER TABLE ordenes MODIFY product_image_url VARCHAR(512) NULL');
+    }
+
     migrate_ordenes_user_ids_to_users($conn);
 }
 
@@ -459,6 +464,10 @@ function normalize_storage_image_path(?string $path): string
         return '';
     }
 
+    if (preg_match('/[?&]path=([^&]+)/i', $path, $queryMatch)) {
+        $path = urldecode($queryMatch[1]);
+    }
+
     if (preg_match('#(storage/(?:products|productos|avatars)/[^\s?]+)#i', $path, $matches)) {
         return $matches[1];
     }
@@ -468,7 +477,10 @@ function normalize_storage_image_path(?string $path): string
     }
 
     if (preg_match('#^https?://#i', $path)) {
-        return $path;
+        if (preg_match('#/(storage/(?:products|productos|avatars)/[^?#\s]+)#i', $path, $urlMatch)) {
+            return $urlMatch[1];
+        }
+        return '';
     }
 
     if (preg_match('/^blob:/i', $path) || stripos($path, 'data:image/') !== false) {
@@ -476,6 +488,20 @@ function normalize_storage_image_path(?string $path): string
     }
 
     return $path;
+}
+
+function compact_order_image_path(?string $path): string
+{
+    $normalized = normalize_storage_image_path($path);
+    if ($normalized === '') {
+        return '';
+    }
+
+    if (strlen($normalized) > 240) {
+        $normalized = substr($normalized, 0, 240);
+    }
+
+    return $normalized;
 }
 
 function legacy_usuarios_name_expr(string $alias = 'leg'): string
