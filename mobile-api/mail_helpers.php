@@ -252,29 +252,39 @@ function brevo_api_is_configured(): bool
 
 function send_email_via_brevo_api(string $toEmail, string $subject, string $body, ?string $htmlBody = null): bool
 {
+    $result = send_email_via_brevo_api_detailed($toEmail, $subject, $body, $htmlBody);
+    return $result['ok'] === true;
+}
+
+function send_email_via_brevo_api_detailed(
+    string $toEmail,
+    string $subject,
+    string $body,
+    ?string $htmlBody = null
+): array {
     $apiKey = brevo_api_key();
     if ($apiKey === '') {
-        return false;
+        return ['ok' => false, 'http_code' => 0, 'error' => 'BREVO_API_KEY no configurada'];
     }
 
-    $fromEmail = trim(load_local_env('SMTP_FROM')) ?: trim(load_local_env('SMTP_USER'));
+    $fromEmail = strtolower(trim(load_local_env('SMTP_FROM')) ?: trim(load_local_env('SMTP_USER')));
     $fromName = load_local_env('SMTP_FROM_NAME') ?: 'Q-LESS';
     if ($fromEmail === '' || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
-        return false;
+        return ['ok' => false, 'http_code' => 0, 'error' => 'SMTP_FROM inválido o vacío'];
+    }
+
+    if (!function_exists('curl_init')) {
+        return ['ok' => false, 'http_code' => 0, 'error' => 'curl no disponible en el servidor PHP'];
     }
 
     $payload = [
         'sender' => ['name' => $fromName, 'email' => $fromEmail],
-        'to' => [['email' => $toEmail]],
+        'to' => [['email' => strtolower(trim($toEmail))]],
         'subject' => $subject,
         'textContent' => $body,
     ];
     if ($htmlBody !== null && $htmlBody !== '') {
         $payload['htmlContent'] = $htmlBody;
-    }
-
-    if (!function_exists('curl_init')) {
-        return false;
     }
 
     $ch = curl_init('https://api.brevo.com/v3/smtp/email');
@@ -289,9 +299,32 @@ function send_email_via_brevo_api(string $toEmail, string $subject, string $body
         CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
         CURLOPT_TIMEOUT => 30,
     ]);
-    curl_exec($ch);
+    $responseBody = curl_exec($ch);
+    $curlError = curl_error($ch);
     $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    return $httpCode >= 200 && $httpCode < 300;
+    if ($curlError !== '') {
+        return ['ok' => false, 'http_code' => $httpCode, 'error' => $curlError];
+    }
+
+    if ($httpCode >= 200 && $httpCode < 300) {
+        return ['ok' => true, 'http_code' => $httpCode, 'error' => null];
+    }
+
+    $decoded = json_decode((string) $responseBody, true);
+    $message = is_array($decoded)
+        ? ($decoded['message'] ?? $decoded['code'] ?? (string) $responseBody)
+        : (string) $responseBody;
+
+    return [
+        'ok' => false,
+        'http_code' => $httpCode,
+        'error' => $message !== '' ? $message : 'Error desconocido de Brevo',
+        'hint' => $httpCode === 401
+            ? 'Clave API inválida. Regenera xkeysib en Brevo.'
+            : ($httpCode === 403
+                ? 'IP bloqueada en Brevo. Desactiva restricción de IP en Claves API.'
+                : 'Verifica remitente ortizgarciafelipe37@gmail.com en Brevo → Remitentes.'),
+    ];
 }

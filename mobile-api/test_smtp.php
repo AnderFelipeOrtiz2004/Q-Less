@@ -1,6 +1,6 @@
 <?php
 /**
- * Prueba de correo en producción — usar una vez y luego borrar o restringir.
+ * Prueba de correo en producción.
  * https://TU-API/test_smtp.php?to=tu@gmail.com
  */
 header('Content-Type: application/json; charset=utf-8');
@@ -24,17 +24,27 @@ $subject = 'Prueba Q-LESS + Brevo';
 $body = "Hola,\n\nCorreo de prueba desde Q-LESS en Railway.\n\n— Q-LESS";
 $html = '<p>Hola,</p><p>Correo de <strong>prueba</strong> desde Q-LESS en Railway.</p>';
 
-$sent = send_app_email($to, $subject, $body, $html);
 $apiKey = brevo_api_key();
+$fromEmail = strtolower(trim(load_local_env('SMTP_FROM')) ?: trim(load_local_env('SMTP_USER')));
+$brevoResult = send_email_via_brevo_api_detailed($to, $subject, $body, $html);
+$sent = $brevoResult['ok'] === true;
+
+if (!$sent) {
+    $sent = send_reset_email($to, $subject, $body, $html);
+}
 
 echo json_encode([
     'status' => $sent ? 'success' : 'error',
     'message' => $sent
         ? "Correo enviado a {$to}. Revisa bandeja y Brevo → Transaccional → Tiempo real."
-        : 'No se pudo enviar. Confirma BREVO_API_KEY en Railway, haz Deploy y verifica remitente en Brevo.',
+        : 'No se pudo enviar. Lee brevo_detail abajo.',
     'smtp_configured' => smtp_is_configured(),
     'brevo_api_configured' => $apiKey !== '',
-    'brevo_key_detected' => $apiKey !== '' ? substr($apiKey, 0, 12) . '...' : null,
+    'smtp_from' => $fromEmail,
     'smtp_provider' => trim(load_local_env('SMTP_PROVIDER')),
-    'transport' => $apiKey !== '' ? 'brevo_api_preferred' : 'smtp_only',
+    'curl_available' => function_exists('curl_init'),
+    'brevo_detail' => $brevoResult,
+    'transport' => $sent
+        ? ($brevoResult['ok'] ? 'brevo_api' : 'smtp')
+        : 'failed',
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
