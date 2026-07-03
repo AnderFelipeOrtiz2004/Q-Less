@@ -230,19 +230,16 @@ function send_reset_email(string $toEmail, string $subject, string $body, ?strin
 
 function send_app_email(string $toEmail, string $subject, string $body, ?string $htmlBody = null): bool
 {
-    if (brevo_api_key() !== '' && send_email_via_brevo_api($toEmail, $subject, $body, $htmlBody)) {
-        return true;
+    $apiKey = brevo_api_key();
+    if ($apiKey !== '') {
+        $apiResult = send_email_via_brevo_api_detailed($toEmail, $subject, $body, $htmlBody);
+        if ($apiResult['ok'] === true) {
+            return true;
+        }
+        error_log('Brevo API mail failed: ' . json_encode($apiResult));
     }
 
-    if (send_reset_email($toEmail, $subject, $body, $htmlBody)) {
-        return true;
-    }
-
-    if (brevo_api_key() !== '') {
-        return send_email_via_brevo_api($toEmail, $subject, $body, $htmlBody);
-    }
-
-    return false;
+    return send_reset_email($toEmail, $subject, $body, $htmlBody);
 }
 
 function brevo_api_is_configured(): bool
