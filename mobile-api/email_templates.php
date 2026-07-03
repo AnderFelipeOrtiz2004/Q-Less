@@ -136,20 +136,43 @@ function qless_verify_email_content(string $userName, string $code, string $emai
     return ['plain' => $plain, 'html' => $html];
 }
 
-function qless_purchase_code_email(string $userName, string $code, string $productSummary): array
-{
+function qless_purchase_code_email(
+    string $userName,
+    string $code,
+    string $productName,
+    int $quantity,
+    int $unitPrice,
+    int $totalPrice
+): array {
+    $qtyLabel = $quantity > 1 ? "{$quantity} unidades" : '1 unidad';
     $plain = "Hola {$userName},\n\n"
-        . "Tu compra fue aprobada.\n\nProducto: {$productSummary}\n"
-        . "Código de entrega: {$code}\n\nPresenta este código para recoger tu pedido.\n\n— Equipo Q-LESS";
+        . "Tu compra fue ACEPTADA por el administrador.\n\n"
+        . "FACTURA Q-LESS\n"
+        . "----------------\n"
+        . "Producto: {$productName}\n"
+        . "Cantidad: {$qtyLabel}\n"
+        . "Precio unitario: \${$unitPrice}\n"
+        . "PRECIO POR PAGAR: \${$totalPrice}\n\n"
+        . "Código de entrega: {$code}\n\n"
+        . "Presenta este código para recoger y pagar tu pedido.\n"
+        . "También lo verás en Mis compras de la app.\n\n— Equipo Q-LESS";
 
     $html = qless_email_html_wrap(
-        'Compra aprobada Q-LESS',
+        'Compra aceptada — Q-LESS',
         '<p>Hola <strong>' . htmlspecialchars($userName, ENT_QUOTES, 'UTF-8') . '</strong>,</p>'
-        . '<p>Tu compra fue <strong>aprobada</strong>.</p>'
-        . '<p>' . htmlspecialchars($productSummary, ENT_QUOTES, 'UTF-8') . '</p>'
-        . '<p style="text-align:center;font-size:32px;font-weight:800;letter-spacing:6px;color:#2FA832;margin:20px 0;">'
+        . '<p>Tu compra fue <strong style="color:#2FA832;">ACEPTADA</strong> por el administrador.</p>'
+        . '<div style="background:#f8faf8;border:1px solid #d8ead8;border-radius:10px;padding:16px;margin:16px 0;">'
+        . '<p style="margin:0 0 8px;font-size:13px;color:#666;">Factura</p>'
+        . '<p style="margin:0 0 4px;"><strong>' . htmlspecialchars($productName, ENT_QUOTES, 'UTF-8') . '</strong></p>'
+        . '<p style="margin:0 0 4px;font-size:14px;">Cantidad: ' . htmlspecialchars($qtyLabel, ENT_QUOTES, 'UTF-8') . '</p>'
+        . '<p style="margin:0 0 4px;font-size:14px;">Precio unitario: $' . number_format($unitPrice, 0, ',', '.') . '</p>'
+        . '<p style="margin:12px 0 0;font-size:18px;font-weight:800;color:#2FA832;">Precio por pagar: $'
+        . number_format($totalPrice, 0, ',', '.') . '</p>'
+        . '</div>'
+        . '<p style="text-align:center;font-size:13px;color:#666;margin-bottom:8px;">Código de compra</p>'
+        . '<p style="text-align:center;font-size:32px;font-weight:800;letter-spacing:6px;color:#2FA832;margin:8px 0 20px;">'
         . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . '</p>'
-        . '<p>Presenta este código para recoger tu pedido. También lo verás en <strong>Mis compras</strong> de la app.</p>'
+        . '<p>Presenta este código para recoger y pagar tu pedido.</p>'
     );
 
     return ['plain' => $plain, 'html' => $html];

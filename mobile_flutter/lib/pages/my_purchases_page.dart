@@ -150,7 +150,7 @@ class _MyPurchasesPageState extends State<MyPurchasesPage> {
       return _StatusBadgeStyle(
         bg: _brandGreen.withOpacity(0.12),
         fg: _brandGreen,
-        label: 'Aceptada',
+        label: 'Compra aceptada',
       );
     }
     if (s == 'completada' || s == 'pagada') {
@@ -331,6 +331,24 @@ class _MyPurchasesPageState extends State<MyPurchasesPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
+                    'Compra aceptada',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF56C900),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Precio por pagar: \$${order.totalPrice}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
                     'Código de compra',
                     style: TextStyle(
                       fontSize: 12,
@@ -350,7 +368,7 @@ class _MyPurchasesPageState extends State<MyPurchasesPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'También te llegó a tu Gmail. Preséntalo para recoger tu pedido.',
+                    'También te llegó a tu Gmail. Preséntalo para recoger y pagar.',
                     style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                   ),
                 ],
